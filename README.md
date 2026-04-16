@@ -27,3 +27,59 @@
 ### 👔 For the Manager
 * **US 11:** As a manager, I want to easily add, edit, or remove menu items and prices, so that I can keep the restaurant's offering updated in real-time without reprinting physical menus.
 * **US 12:** As a manager, I want to generate an end-of-day sales report, so that I can track total revenue and identify the best-selling menu items.
+
+---
+
+## 🛠️ Tech Stack
+To ensure a highly responsive, real-time experience while maintaining a clean and scalable codebase, RestroManager is built using a modern decoupled architecture:
+
+* **Frontend:** Next.js (React), Tailwind CSS, shadcn/ui
+* **Backend:** FastAPI (Python)
+* **Database:** PostgreSQL via SQLModel
+* **Real-time Communication:** WebSockets (Native FastAPI)
+* **Payments:** Stripe Python SDK
+
+---
+
+## 📐 System Architecture
+
+The system decouples the client-facing interfaces from the backend logic. Standard requests (like fetching the menu or processing payments) use REST API endpoints, while time-sensitive events (like calling a waiter or kitchen notifications) utilize WebSockets for instantaneous updates.
+
+```mermaid
+flowchart TB
+    subgraph Frontend [Frontend - Next.js & Tailwind]
+        direction LR
+        C[📱 Customer App]
+        W[🏃 Waiter App]
+        K[👨‍🍳 Chef KDS]
+        M[👔 Manager Dashboard]
+    end
+
+    subgraph Backend [Backend - FastAPI Python]
+        API[⚙️ REST API Routes]
+        WS[⚡ WebSocket Manager]
+    end
+
+    subgraph Database [Database]
+        DB[(🐘 PostgreSQL via SQLModel)]
+    end
+
+    subgraph External [External Services]
+        S[💳 Stripe API - Payments]
+    end
+
+    %% REST HTTP Relations (Solid lines)
+    C -->|HTTP GET/POST| API
+    W -->|HTTP GET/POST| API
+    K -->|HTTP GET/POST| API
+    M -->|HTTP GET/POST| API
+
+    %% WebSockets Relations (Dotted lines for Real-time)
+    C -.->|WebSockets| WS
+    W -.->|WebSockets| WS
+    K -.->|WebSockets| WS
+
+    %% Internal Connections
+    API <-->|Queries/Transactions| DB
+    WS <-->|Status Notifications| DB
+    API <-->|Generate Checkout Session| S
