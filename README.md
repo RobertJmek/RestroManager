@@ -83,3 +83,123 @@ flowchart TB
     API <-->|Queries/Transactions| DB
     WS <-->|Status Notifications| DB
     API <-->|Generate Checkout Session| S
+```
+
+## 🗄️ Database Schema
+
+The foundational data model ensures a normalized and robust representation of the restaurant's operational flow.
+
+```mermaid
+erDiagram
+    User {
+        int id PK
+        string name
+        string email UK
+        string phone UK
+        string role "Enum: Customer, Waiter, Chef, Manager"
+        boolean is_active
+        datetime created_at
+        string hashed_password
+    }
+
+    Category {
+        int id PK
+        string name
+        string description
+    }
+
+    Table {
+        int id PK
+        int number UK
+        int capacity
+        string status "Enum: free, occupied, waiting_for_food, bill_requested"
+        string qr_code_url
+        string location
+        int waiter_id FK
+    }
+
+    MenuItem {
+        int id PK
+        string name
+        string description
+        int category_id FK
+        float price
+        string image_url
+        string ingredients
+        boolean is_available
+        int prep_time_minutes
+        string dietary_tags
+    }
+
+    Order {
+        int id PK
+        int table_id FK
+        string status "Enum: pending, ready, served, paid"
+        float total_price
+        datetime created_at
+        string stripe_payment_id
+        string special_requests
+    }
+
+    OrderItem {
+        int id PK
+        int order_id FK
+        int menu_item_id FK
+        int quantity
+        string special_instructions
+    }
+
+    %% Relationships
+    User ||--o{ Table : "is assigned to (Waiter)"
+    Category ||--o{ MenuItem : "categorizes"
+    Table ||--o{ Order : "places"
+    Order ||--|{ OrderItem : "contains"
+    MenuItem ||--o{ OrderItem : "is included in"
+```
+
+## 🚀 Quick Start (Local Development)
+
+To make it as easy as possible to grade or review the system, the backend is fully containerized.
+
+### Prerequisites
+- **Docker & Docker Compose** (Colima, Docker Desktop, etc.)
+- **Python 3.12+** (For the local virtual environment)
+- A **PostgreSQL** database (We use a cloud Supabase instance, but any standard PostgreSQL works)
+
+### 1. Configure the Environment
+
+1. Clone the repository.
+2. Create a `.env` file in the root directory containing your DB URL:
+```env
+DATABASE_URL="postgresql://[USER]:[PASSWORD]@[HOST]:5432/postgres"
+```
+
+### 2. Run the API (Backend with Docker)
+
+We use Docker for a seamless hot-reloading experience. From the root directory:
+```bash
+docker compose up --build
+```
+> The Interactive API Documentation (Swagger) will instantly be available at `http://localhost:8000/docs`.
+
+### 3. Seed the Database
+
+To populate the fresh database with a Manager, 5 Tables, Categories, and 10 Menu Items, open a new terminal:
+```bash
+
+
+# 1. Create & activate a virtual environment
+
+python3 -m venv .venv
+source .venv/bin/activate
+
+# 2. Install backend utilities
+
+pip install -r backend/requirements.txt
+
+# 3. Populate database
+python backend/seed.py
+```
+
+
+
