@@ -201,5 +201,25 @@ pip install -r backend/requirements.txt
 python backend/seed.py
 ```
 
+---
+
+## 🛰️ Real-Time AI Architecture 
+
+To ensure a smooth experience, we designed an event-driven architecture, where decisions are assisted by AI before being transmitted via WebSockets.
+
+### 🔄 The flow of an order
+```mermaid
+sequenceDiagram
+    participant FE as Frontend (Next.js)
+    participant BE as FastAPI (Backend)
+    participant AI as AI Agents (Logic)
+    participant WS as WebSocket Manager (Dev 2)
+
+    FE->>BE: POST /api/orders
+    BE->>AI: Solicitare prioritizare (Chef Agent)
+    AI-->>BE: Rezultat: Urgent (ex: Alergie detectată)
+    BE->>WS: Broadcast către roluri (Chef/Waiter)
+    WS-->>FE: Notificare real-time (Toast Alert)
+
 
 

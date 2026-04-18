@@ -1,5 +1,7 @@
-from fastapi import FastAPI
+﻿from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from core.websocket_manager import manager
+from fastapi import WebSocket, WebSocketDisconnect
 
 app = FastAPI(
     title="RestroManager API",
@@ -23,3 +25,15 @@ async def root():
 @app.get("/health")
 async def health_check():
     return {"status": "ok"}
+
+@app.websocket("/ws/{role}")
+async def websocket_endpoint(websocket: WebSocket, role: str):
+    await manager.connect(websocket, role)
+    try:
+        while True:
+            # We are waiting for messages (ex: The customer calls the waiter)
+            data = await websocket.receive_json()
+            # Here we will insert the call to the AI ​​AGENT later
+            await manager.broadcast_to_role("waiter", {"event": "call_waiter", "data": data})
+    except WebSocketDisconnect:
+        manager.disconnect(websocket, role)
