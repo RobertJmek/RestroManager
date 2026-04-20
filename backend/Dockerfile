@@ -17,6 +17,7 @@ COPY backend/ ./backend/
 # Setăm variabile de mediu utile pt Python în containere Docker
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONPATH=/app/backend
 
 # Expunem portul pe care va rula aplicația FastAPI
 EXPOSE 8000
