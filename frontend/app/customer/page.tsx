@@ -86,7 +86,7 @@ export default function CustomerPage() {
       if (response.ok) {
         const result = await response.json();
         // Redirect simulat către Stripe Checkout / Success Screen
-        alert(`🔒 Redirecționare către Stripe pentru suma de ${cartTotal} RON...\n\n(AI Priority atribuit comenzii: ${result.ai_safety})`);
+        alert(`🔒 Redirecționare către Stripe pentru suma de ${cartTotal.toFixed(2)} RON...\n\n(AI Priority atribuit comenzii: ${result.ai_safety})`);
         
         // Golește coșul după comandă
         setCart([]);
@@ -132,7 +132,7 @@ export default function CustomerPage() {
                   {item.description}
                 </CardDescription>
                 <div className="flex items-center justify-between mt-auto pt-4 border-t border-slate-800">
-                  <span className="text-2xl font-black text-violet-400">{item.price} <span className="text-sm font-medium text-slate-500">RON</span></span>
+                  <span className="text-2xl font-black text-violet-400">{item.price.toFixed(2)} <span className="text-sm font-medium text-slate-500">RON</span></span>
                   
                   <Dialog>
                     <DialogTrigger render={<Button variant="secondary" className="bg-violet-600 hover:bg-violet-500 text-white rounded-full px-8 py-6 text-md font-semibold transition-all hover:-translate-y-1" />}>
@@ -194,7 +194,7 @@ export default function CustomerPage() {
                       <div>
                         <p className="font-bold text-white">{cartItem.name}</p>
                         {cartItem.notes && <p className="text-xs text-slate-400">Notă: {cartItem.notes}</p>}
-                        <p className="text-sm text-indigo-300">{cartItem.price} RON</p>
+                        <p className="text-sm text-indigo-300">{cartItem.price.toFixed(2)} RON</p>
                       </div>
                       <Button variant="ghost" size="icon" onClick={() => removeFromCart(cartItem.id)} className="text-red-400 hover:text-red-300 hover:bg-red-400/10">
                         <Trash2 size={18} />
@@ -203,7 +203,7 @@ export default function CustomerPage() {
                   ))}
                   <div className="border-t border-slate-700 mt-2 pt-4 flex justify-between items-center">
                     <span className="text-lg font-medium text-slate-300">Total:</span>
-                    <span className="text-2xl font-black text-white">{cartTotal} RON</span>
+                    <span className="text-2xl font-black text-white">{cartTotal.toFixed(2)} RON</span>
                   </div>
                 </div>
               )}
