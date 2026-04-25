@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react'; // Adăugat useEffect
 import { Card, CardDescription, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { BellRing } from "lucide-react"; // Importă un icon pentru buton
+import { BellRing, ShoppingCart, CreditCard, Trash2 } from "lucide-react"; // Importăm iconițe adiționale
 
 // Mock Data... (rămâne neschimbat)
 const MOCK_MENU = [
@@ -18,6 +18,10 @@ export default function CustomerPage() {
   const [selectedItem, setSelectedItem] = useState<any>(null);
   const [instructions, setInstructions] = useState("");
   const [socket, setSocket] = useState<WebSocket | null>(null);
+  
+  // Starea pentru coșul de cumpărături
+  const [cart, setCart] = useState<any[]>([]);
+  const [isCartOpen, setIsCartOpen] = useState(false);
 
   // Inițializăm conexiunea WS pentru client (Issue 3.1)
   useEffect(() => {
@@ -39,13 +43,38 @@ export default function CustomerPage() {
     }
   };
 
-  const handleAddToCart = async (item: any) => {
+  const handleAddToCart = (item: any) => {
+    const newItem = {
+      id: Math.random().toString(36).substr(2, 9),
+      productId: item.id,
+      name: item.name,
+      price: item.price,
+      quantity: 1,
+      notes: instructions
+    };
+    
+    setCart([...cart, newItem]);
+    setInstructions("");
+    setSelectedItem(null);
+    alert(`✅ ${item.name} a fost adăugat în coș!`);
+  };
+
+  const removeFromCart = (idToRemove: string) => {
+    setCart(cart.filter(item => item.id !== idToRemove));
+  };
+
+  const cartTotal = cart.reduce((total, item) => total + (item.price * item.quantity), 0);
+
+  const handleCheckout = async () => {
+    if (cart.length === 0) return;
+
     try {
       const orderPayload = {
         id: Math.floor(Math.random() * 1000),
         table_number: 2,
-        items: [{ name: item.name, quantity: 1, prep_time: 15 }],
-        notes: instructions
+        items: cart.map(item => ({ name: item.name, quantity: item.quantity, prep_time: 15 })),
+        notes: cart.map(item => item.notes).filter(n => n).join(" | "),
+        total: cartTotal
       };
 
       const response = await fetch("http://localhost:8000/api/orders", {
@@ -56,15 +85,22 @@ export default function CustomerPage() {
 
       if (response.ok) {
         const result = await response.json();
-        alert(`🚀 Comandă trimisă! AI Priority: ${result.ai_safety}`);
+        // Redirect simulat către Stripe Checkout / Success Screen
+        alert(`🔒 Redirecționare către Stripe pentru suma de ${cartTotal} RON...\n\n(AI Priority atribuit comenzii: ${result.ai_safety})`);
+        
+        // Golește coșul după comandă
+        setCart([]);
+        setIsCartOpen(false);
+
+        // Redirect real pe noul ecran de succes!
+        window.location.href = "/customer/success";
       } else {
-        alert("❌ Eroare la trimiterea comenzii.");
+        alert("❌ Eroare la procesarea comenzii.");
       }
     } catch (error) {
       console.error("Eroare conexiune:", error);
+      alert("❌ Nu ne-am putut conecta la server.");
     }
-    setInstructions("");
-    setSelectedItem(null);
   };
 
   return (
@@ -99,10 +135,8 @@ export default function CustomerPage() {
                   <span className="text-2xl font-black text-violet-400">{item.price} <span className="text-sm font-medium text-slate-500">RON</span></span>
                   
                   <Dialog>
-                    <DialogTrigger asChild>
-                      <Button variant="secondary" className="bg-violet-600 hover:bg-violet-500 text-white rounded-full px-8 py-6 text-md font-semibold transition-all hover:-translate-y-1">
-                        Comandă
-                      </Button>
+                    <DialogTrigger render={<Button variant="secondary" className="bg-violet-600 hover:bg-violet-500 text-white rounded-full px-8 py-6 text-md font-semibold transition-all hover:-translate-y-1" />}>
+                      Comandă
                     </DialogTrigger>
                     <DialogContent className="bg-slate-900 border-slate-700 text-white sm:max-w-[450px]">
                       <DialogHeader>
@@ -131,7 +165,62 @@ export default function CustomerPage() {
       </div>
 
       {/* BUTON PLUTITOR: Cheamă Chelnerul (Issue 2.4) */}
-      <div className="fixed bottom-6 right-6 z-50">
+      <div className="fixed bottom-6 right-6 z-50 flex flex-col gap-4">
+        
+        {/* BUTON COȘ CUMPĂRĂTURI */}
+        <Dialog open={isCartOpen} onOpenChange={setIsCartOpen}>
+          <DialogTrigger render={<Button className="bg-indigo-600 hover:bg-indigo-500 text-white rounded-full w-16 h-16 shadow-2xl flex flex-col items-center justify-center p-0 transition-transform hover:scale-110 active:scale-90 border-2 border-indigo-400 relative" />}>
+            <ShoppingCart size={24} />
+            {cart.length > 0 && (
+              <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold w-6 h-6 rounded-full flex items-center justify-center border-2 border-slate-950">
+                {cart.length}
+              </span>
+            )}
+            <span className="text-[10px] font-bold mt-1 uppercase leading-none">Coș</span>
+          </DialogTrigger>
+          <DialogContent className="bg-slate-900 border-slate-700 text-white sm:max-w-[450px]">
+            <DialogHeader>
+              <DialogTitle className="text-2xl font-bold flex items-center gap-2">
+                <ShoppingCart className="text-indigo-400" /> Coșul tău
+              </DialogTitle>
+            </DialogHeader>
+            <div className="py-4 max-h-[400px] overflow-y-auto">
+              {cart.length === 0 ? (
+                <p className="text-slate-400 text-center py-8">Coșul este gol.</p>
+              ) : (
+                <div className="flex flex-col gap-4">
+                  {cart.map((cartItem) => (
+                    <div key={cartItem.id} className="flex justify-between items-center bg-slate-800 p-3 rounded-lg border border-slate-700">
+                      <div>
+                        <p className="font-bold text-white">{cartItem.name}</p>
+                        {cartItem.notes && <p className="text-xs text-slate-400">Notă: {cartItem.notes}</p>}
+                        <p className="text-sm text-indigo-300">{cartItem.price} RON</p>
+                      </div>
+                      <Button variant="ghost" size="icon" onClick={() => removeFromCart(cartItem.id)} className="text-red-400 hover:text-red-300 hover:bg-red-400/10">
+                        <Trash2 size={18} />
+                      </Button>
+                    </div>
+                  ))}
+                  <div className="border-t border-slate-700 mt-2 pt-4 flex justify-between items-center">
+                    <span className="text-lg font-medium text-slate-300">Total:</span>
+                    <span className="text-2xl font-black text-white">{cartTotal} RON</span>
+                  </div>
+                </div>
+              )}
+            </div>
+            <DialogFooter>
+              <Button 
+                className="w-full bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 py-6 text-lg font-bold rounded-xl flex items-center gap-2" 
+                onClick={handleCheckout}
+                disabled={cart.length === 0}
+              >
+                <CreditCard size={20} /> Checkout cu Stripe
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* BUTON CHELNER */}
         <Button 
           onClick={handleCallWaiter}
           className="bg-red-600 hover:bg-red-500 text-white rounded-full w-16 h-16 shadow-2xl flex flex-col items-center justify-center p-0 transition-transform hover:scale-110 active:scale-90 border-2 border-red-400"
