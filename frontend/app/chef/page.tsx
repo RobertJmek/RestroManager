@@ -37,7 +37,8 @@ export default function ChefPage() {
   useEffect(() => {
     if (!isAuthorized) return;
 
-    const ws = new WebSocket("ws://localhost:8000/ws/chef")
+    const token = localStorage.getItem("token");
+    const ws = new WebSocket(`ws://localhost:8000/ws/chef?token=${encodeURIComponent(token ?? "")}`)
     setSocket(ws)
 
     ws.onmessage = (event) => {

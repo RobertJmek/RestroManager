@@ -55,6 +55,15 @@ class UserUpdate(SQLModel):
     role: Optional[UserRole] = None
     is_active: Optional[bool] = None
 
+    @field_validator("phone")
+    @classmethod
+    def validate_phone(cls, v):
+        if v is None:
+            return v
+        if not re.match(r"^\+?\d{7,20}$", v):
+            raise ValueError("Numărul de telefon trebuie să conțină între 7 și 20 de cifre și poate începe cu '+'.")
+        return v
+
 # Schemas for Tokens
 class Token(SQLModel):
     access_token: str

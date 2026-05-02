@@ -37,8 +37,9 @@ export default function WaiterPage() {
   useEffect(() => {
     if (!isAuthorized) return;
 
+    const token = localStorage.getItem("token");
     // Conexiune WebSocket pentru Chelner
-    const socket = new WebSocket("ws://localhost:8000/ws/waiter");
+    const socket = new WebSocket(`ws://localhost:8000/ws/waiter?token=${encodeURIComponent(token ?? "")}`);
 
     socket.onmessage = (event) => {
       const data = JSON.parse(event.data);

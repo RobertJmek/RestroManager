@@ -23,6 +23,7 @@ function CustomerContent() {
   const [instructions, setInstructions] = useState("");
   const [socket, setSocket] = useState<WebSocket | null>(null);
   const [tableId, setTableId] = useState<number | null>(null);
+  const [guestToken, setGuestToken] = useState<string | null>(null);
   
   const searchParams = useSearchParams();
   const urlTableId = searchParams.get('table_id');
@@ -48,6 +49,7 @@ function CustomerContent() {
           localStorage.setItem("token", data.access_token);
           localStorage.setItem("user_role", "Guest");
           localStorage.setItem("table_id", tId.toString());
+          setGuestToken(data.access_token);
           console.log("Authenticated as Guest for table", tId);
         }
       } catch (err) {
@@ -58,13 +60,13 @@ function CustomerContent() {
     authGuest();
   }, [urlTableId]);
 
-  // Inițializăm conexiunea WS pentru client
+  // Inițializăm conexiunea WS pentru client după autentificare
   useEffect(() => {
-    // În realitate, ar trebui să trimitem token-ul și aici
-    const ws = new WebSocket("ws://localhost:8000/ws/customer");
+    if (!guestToken) return;
+    const ws = new WebSocket(`ws://localhost:8000/ws/guest?token=${encodeURIComponent(guestToken)}`);
     setSocket(ws);
     return () => ws.close();
-  }, []);
+  }, [guestToken]);
 
   // Funcție pentru Chemare Chelner
   const handleCallWaiter = () => {

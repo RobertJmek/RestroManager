@@ -22,13 +22,16 @@ async def create_order(
     safety_priority = run_ai_safety_agent(order.get("notes", ""))
     cooking_advice = run_ai_kds_optimizer(order.get("items", []))
     
+    # Suprascriem table_number cu valoarea de încredere din JWT
+    sanitized_order = {**order, "table_number": table_id}
+
     payload = {
         "event": "NEW_ORDER",
         "ai_metadata": {
             "urgency": safety_priority,
             "cooking_strategy": cooking_advice
         },
-        "data": order
+        "data": sanitized_order
     }
     
     # 2. Notificăm Bucătăria (KDS) în timp real
@@ -37,7 +40,7 @@ async def create_order(
     # 3. Notificăm și Chelnerul că s-a ocupat o masă 
     await manager.broadcast_to_role("waiter", {
         "event": "TABLE_OCCUPIED",
-        "table": order.get("table_number")
+        "table": table_id
     })
 
     return {"status": "Processed by AI and sent to KDS", "ai_safety": safety_priority, "table_id": table_id}

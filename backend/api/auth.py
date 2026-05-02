@@ -5,6 +5,7 @@ from datetime import timedelta
 
 from db.session import get_session
 from models.user import User, UserCreate, UserRead, Token
+from models.table import Table
 from core.security import get_password_hash, verify_password, create_access_token, settings
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
@@ -77,15 +78,22 @@ async def login(
     )
     return {"access_token": access_token, "token_type": "bearer"}
 
-@router.post("/guest-login/{table_id}", response_model=Token)
-async def guest_login(table_id: int):
+@router.post("/guest-login/{table_number}", response_model=Token)
+async def guest_login(table_number: int, session: Session = Depends(get_session)):
     """
     Generare token pentru Guest pe baza scanării QR la masă.
+    Verifică că masa există în baza de date înainte de a emite token-ul.
     """
-    # TODO: Aici se poate adăuga o verificare dacă masa există și e activă
+    table = session.exec(select(Table).where(Table.number == table_number)).first()
+    if not table:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Masa {table_number} nu există"
+        )
+
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
-        data={"role": "Guest", "table_id": table_id},
+        data={"role": "Guest", "table_id": table_number},
         expires_delta=access_token_expires
     )
     return {"access_token": access_token, "token_type": "bearer"}

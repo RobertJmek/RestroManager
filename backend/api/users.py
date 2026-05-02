@@ -27,8 +27,8 @@ async def update_user_me(
     user_data = user_update.dict(exclude_unset=True)
     
     for key, value in user_data.items():
-        # Securitate: Ignorăm câmpurile care țin de administrare
-        if key not in ["role", "is_active", "hashed_password"]:
+        # Securitate: Ignorăm câmpurile care țin de administrare sau identificare
+        if key not in ["role", "is_active", "hashed_password", "email"]:
             setattr(current_user, key, value)
             
     try:
