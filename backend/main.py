@@ -1,6 +1,8 @@
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from typing import List, Dict
+from sqlmodel import Session, text
+from db.session import get_session
 
 # Importăm managerul tău de WebSocket
 from core.websocket_manager import manager
