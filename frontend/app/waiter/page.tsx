@@ -3,6 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Bell, CheckCircle2, AlertTriangle } from "lucide-react";
 import UserProfileMenu from "../../components/ui/UserProfileMenu";
+import { isTokenValid, logout } from "../../lib/api";
 
 // Structura pentru mese (Mock initial)
 const INITIAL_TABLES = [
@@ -24,8 +25,8 @@ export default function WaiterPage() {
     const token = localStorage.getItem("token");
     const role = localStorage.getItem("user_role");
 
-    if (!token) {
-      window.location.href = "/login";
+    if (!isTokenValid(token)) {
+      logout();
     } else if (role !== "Waiter") {
       setIsAuthorized(false);
     } else {

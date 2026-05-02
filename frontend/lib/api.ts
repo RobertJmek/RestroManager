@@ -3,13 +3,14 @@ const API_URL = "http://localhost:8000/api";
 function decodeJwtPayload(token: string): Record<string, any> | null {
   try {
     const base64 = token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
-    return JSON.parse(atob(base64));
+    const padded = base64 + "=".repeat((4 - (base64.length % 4)) % 4);
+    return JSON.parse(atob(padded));
   } catch {
     return null;
   }
 }
 
-function isTokenValid(token: string | null): boolean {
+export function isTokenValid(token: string | null): boolean {
   if (!token) return false;
   const payload = decodeJwtPayload(token);
   if (!payload || !payload.exp) return false;

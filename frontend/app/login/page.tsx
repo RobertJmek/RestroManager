@@ -3,16 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Lock, Mail, Loader2, UtensilsCrossed } from "lucide-react";
-
-/** Decodifică payload-ul unui JWT fără biblioteci externe. */
-function decodeJwtPayload(token: string): Record<string, any> | null {
-  try {
-    const base64 = token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
-    return JSON.parse(atob(base64));
-  } catch {
-    return null;
-  }
-}
+import { isTokenValid, logout } from "../../lib/api";
 
 const ROLE_REDIRECTS: Record<string, string> = {
   Manager: "/manager",
@@ -33,16 +24,12 @@ export default function LoginPage() {
     const role = localStorage.getItem("user_role");
 
     if (token && role && ROLE_REDIRECTS[role]) {
-      // Verificăm că token-ul nu e expirat
-      const payload = decodeJwtPayload(token);
-      if (payload && payload.exp && payload.exp * 1000 > Date.now()) {
+      if (isTokenValid(token)) {
         window.location.href = ROLE_REDIRECTS[role];
         return;
       }
       // Token expirat — curățăm
-      localStorage.removeItem("token");
-      localStorage.removeItem("user_role");
-      localStorage.removeItem("user_name");
+      logout();
     }
     setLoading(false);
   }, []);

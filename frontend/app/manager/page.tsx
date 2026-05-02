@@ -3,6 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import UserProfileMenu from "../../components/ui/UserProfileMenu";
+import { isTokenValid, logout } from "../../lib/api";
 
 export default function ManagerPage() {
   const [dailyTotal, setDailyTotal] = useState(0);
@@ -14,8 +15,8 @@ export default function ManagerPage() {
     const token = localStorage.getItem("token");
     const role = localStorage.getItem("user_role");
 
-    if (!token) {
-      window.location.href = "/login";
+    if (!isTokenValid(token)) {
+      logout();
     } else if (role !== "Manager") {
       setIsAuthorized(false);
     } else {

@@ -1,6 +1,7 @@
 "use client"
 import { useEffect, useState } from "react"
 import UserProfileMenu from "../../components/ui/UserProfileMenu"
+import { isTokenValid, logout } from "../../lib/api";
 
 // Ajustăm tipul datelor pentru a include metadatele AI trimise de Backend
 type Order = {
@@ -24,8 +25,8 @@ export default function ChefPage() {
     const token = localStorage.getItem("token");
     const role = localStorage.getItem("user_role");
 
-    if (!token) {
-      window.location.href = "/login";
+    if (!isTokenValid(token)) {
+      logout();
     } else if (role !== "Chef") {
       setIsAuthorized(false);
     } else {
