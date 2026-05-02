@@ -4,7 +4,7 @@ from sqlmodel import Session, select
 from datetime import timedelta
 
 from db.session import get_session
-from models.user import User, UserCreate, UserRead, Token
+from models.user import User, UserCreate, UserRead, Token, UserRole
 from models.table import Table
 from core.security import get_password_hash, verify_password, create_access_token, settings
 
@@ -35,7 +35,7 @@ async def register(user_in: UserCreate, session: Session = Depends(get_session))
         name=user_in.name,
         email=user_in.email,
         phone=user_in.phone,
-        role=user_in.role,
+        role=UserRole.customer,  # Public registration is always Customer; staff are provisioned by admins
         hashed_password=get_password_hash(user_in.password)
     )
     

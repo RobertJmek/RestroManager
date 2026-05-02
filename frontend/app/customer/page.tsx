@@ -46,9 +46,9 @@ function CustomerContent() {
         });
         const data = await response.json();
         if (response.ok) {
-          localStorage.setItem("token", data.access_token);
-          localStorage.setItem("user_role", "Guest");
-          localStorage.setItem("table_id", tId.toString());
+          // Store guest session under separate keys so we don't clobber an existing staff session
+          localStorage.setItem("guest_token", data.access_token);
+          localStorage.setItem("guest_table_id", tId.toString());
           setGuestToken(data.access_token);
           console.log("Authenticated as Guest for table", tId);
         }
@@ -105,9 +105,13 @@ function CustomerContent() {
 
   const handleCheckout = async () => {
     if (cart.length === 0) return;
+    if (!guestToken) {
+      alert("❌ Sesiunea de oaspete nu este inițializată. Te rugăm să reîncărci pagina.");
+      return;
+    }
 
     try {
-      const token = localStorage.getItem("token");
+      const token = guestToken;
       const orderPayload = {
         id: Math.floor(Math.random() * 1000),
         table_number: tableId,

@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Lock, Mail, Loader2, UtensilsCrossed } from "lucide-react";
-import { isTokenValid, logout } from "../../lib/api";
+import { isTokenValid, logout, decodeJwtPayload } from "../../lib/api";
 
 const ROLE_REDIRECTS: Record<string, string> = {
   Manager: "/manager",
