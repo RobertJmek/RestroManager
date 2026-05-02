@@ -2,17 +2,50 @@
 import React, { useEffect, useState } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import UserProfileMenu from "../../components/ui/UserProfileMenu";
 
 export default function ManagerPage() {
   const [dailyTotal, setDailyTotal] = useState(0);
   const [orderCount, setOrderCount] = useState(0);
+  const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null);
+
+  // Route Guard: verifică rol + validitate token fără flash
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    const role = localStorage.getItem("user_role");
+
+    if (!token) {
+      window.location.href = "/login";
+    } else if (role !== "Manager") {
+      setIsAuthorized(false);
+    } else {
+      setIsAuthorized(true);
+    }
+  }, []);
 
   // Simulăm preluarea raportului zilnic din Backend
   useEffect(() => {
-    // În Etapa 4, aici vei face: fetch("http://localhost:8000/api/reports/daily")
-    setDailyTotal(1250.50); // Valoare mock pentru prezentare
-    setOrderCount(24);
-  }, []);
+    if (isAuthorized) {
+      setDailyTotal(1250.50); // Valoare mock pentru prezentare
+      setOrderCount(24);
+    }
+  }, [isAuthorized]);
+
+  if (isAuthorized === null) {
+    return <div className="min-h-screen bg-slate-950 flex items-center justify-center text-white">Se verifică permisiunile...</div>;
+  }
+
+  if (isAuthorized === false) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center text-white p-8">
+        <h1 className="text-4xl font-bold text-red-500 mb-4">Acces Interzis</h1>
+        <p className="text-slate-400 mb-6">Nu aveți permisiunea de a vizualiza panoul de Manager. Sunteți autentificat ca {localStorage.getItem("user_role")}.</p>
+        <button onClick={() => window.history.back()} className="bg-slate-800 px-6 py-2 rounded-lg hover:bg-slate-700 transition-colors">
+          Înapoi la pagina anterioară
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 p-8">
@@ -21,9 +54,12 @@ export default function ManagerPage() {
           <h1 className="text-4xl font-black text-green-500 tracking-tight">MANAGER DASHBOARD</h1>
           <p className="text-slate-400">Monitorizare vânzări și administrare sistem</p>
         </div>
-        <Button className="bg-green-600 hover:bg-green-500 font-bold">
-          + Adaugă Produs Nou
-        </Button>
+        <div className="flex items-center gap-6">
+          <UserProfileMenu />
+          <Button className="bg-green-600 hover:bg-green-500 font-bold">
+            + Adaugă Produs Nou
+          </Button>
+        </div>
       </header>
 
       {/* Secțiunea de Rapoarte (Issue 3.5) */}

@@ -8,6 +8,10 @@ services:
       - "8000:8000"
     env_file:
       - .env
+    environment:
+      - SECRET_KEY=${SECRET_KEY}
+      - ALGORITHM=${ALGORITHM}
+      - ACCESS_TOKEN_EXPIRE_MINUTES=${ACCESS_TOKEN_EXPIRE_MINUTES}
     # Volumele te ajută să lucrezi (Live Reload). Dacă joi schimbi ceva 
     # dintr-un fișier local din backend/, containerul își dă update instant
     volumes:

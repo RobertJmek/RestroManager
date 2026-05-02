@@ -1,5 +1,6 @@
 "use client"
 import { useEffect, useState } from "react"
+import UserProfileMenu from "../../components/ui/UserProfileMenu"
 
 // Ajustăm tipul datelor pentru a include metadatele AI trimise de Backend
 type Order = {
@@ -16,8 +17,25 @@ type Order = {
 export default function ChefPage() {
   const [orders, setOrders] = useState<Order[]>([])
   const [socket, setSocket] = useState<WebSocket | null>(null)
+  const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null);
+
+  // Route Guard: verifică rol + validitate token fără flash
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    const role = localStorage.getItem("user_role");
+
+    if (!token) {
+      window.location.href = "/login";
+    } else if (role !== "Chef") {
+      setIsAuthorized(false);
+    } else {
+      setIsAuthorized(true);
+    }
+  }, []);
 
   useEffect(() => {
+    if (!isAuthorized) return;
+
     const ws = new WebSocket("ws://localhost:8000/ws/chef")
     setSocket(ws)
 
@@ -35,7 +53,7 @@ export default function ChefPage() {
     }
 
     return () => ws.close()
-  }, [])
+  }, [isAuthorized])
 
   // Funcție pentru a anunța chelnerul (Issue 3.4)
   const markAsReady = (orderId: number, tableNumber: number) => {
@@ -50,12 +68,31 @@ export default function ChefPage() {
     }
   }
 
+  if (isAuthorized === null) {
+    return <div className="min-h-screen bg-slate-900 flex items-center justify-center text-white">Se verifică permisiunile...</div>;
+  }
+
+  if (isAuthorized === false) {
+    return (
+      <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center text-white p-8">
+        <h1 className="text-4xl font-bold text-red-500 mb-4">Acces Interzis</h1>
+        <p className="text-slate-400 mb-6">Nu aveți permisiunea de a vizualiza KDS (Kitchen Display System). Sunteți autentificat ca {localStorage.getItem("user_role")}.</p>
+        <button onClick={() => window.history.back()} className="bg-slate-800 px-6 py-2 rounded-lg hover:bg-slate-700 transition-colors">
+          Înapoi la pagina anterioară
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-slate-900 p-8 text-white">
       <header className="flex justify-between items-center mb-8">
         <h1 className="text-4xl font-black text-orange-500 tracking-tight">KITCHEN DISPLAY SYSTEM</h1>
-        <div className="bg-slate-800 px-4 py-2 rounded-full text-sm border border-slate-700">
-          Status: <span className="text-green-400">● LIVE</span>
+        <div className="flex items-center gap-6">
+          <UserProfileMenu />
+          <div className="bg-slate-800 px-4 py-2 rounded-full text-sm border border-slate-700">
+            Status: <span className="text-green-400">● LIVE</span>
+          </div>
         </div>
       </header>
 

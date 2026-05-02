@@ -2,6 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Bell, CheckCircle2, AlertTriangle } from "lucide-react";
+import UserProfileMenu from "../../components/ui/UserProfileMenu";
 
 // Structura pentru mese (Mock initial)
 const INITIAL_TABLES = [
@@ -16,8 +17,25 @@ const INITIAL_TABLES = [
 export default function WaiterPage() {
   const [tables, setTables] = useState(INITIAL_TABLES);
   const [notifications, setNotifications] = useState<any[]>([]);
+  const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null);
+
+  // Route Guard: verifică rol + validitate token fără flash
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    const role = localStorage.getItem("user_role");
+
+    if (!token) {
+      window.location.href = "/login";
+    } else if (role !== "Waiter") {
+      setIsAuthorized(false);
+    } else {
+      setIsAuthorized(true);
+    }
+  }, []);
 
   useEffect(() => {
+    if (!isAuthorized) return;
+
     // Conexiune WebSocket pentru Chelner
     const socket = new WebSocket("ws://localhost:8000/ws/waiter");
 
@@ -36,7 +54,7 @@ export default function WaiterPage() {
     };
 
     return () => socket.close();
-  }, []);
+  }, [isAuthorized]);
 
   const updateTableStatus = (tableNumber: number, status: string) => {
     setTables(prev => prev.map(t => 
@@ -44,11 +62,28 @@ export default function WaiterPage() {
     ));
   };
 
+  if (isAuthorized === null) {
+    return <div className="min-h-screen bg-slate-50 flex items-center justify-center text-slate-500">Se verifică permisiunile...</div>;
+  }
+
+  if (isAuthorized === false) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center text-slate-800 p-8">
+        <h1 className="text-4xl font-bold text-red-500 mb-4">Acces Interzis</h1>
+        <p className="text-slate-500 mb-6 font-medium">Nu aveți permisiunea de a vizualiza panoul de Waiter. Sunteți autentificat ca {localStorage.getItem("user_role")}.</p>
+        <button onClick={() => window.history.back()} className="bg-white border border-slate-300 text-slate-700 px-6 py-2 rounded-lg hover:bg-slate-100 transition-colors shadow-sm font-semibold">
+          Înapoi la pagina anterioară
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-slate-50 p-6 md:p-10">
       <header className="flex justify-between items-center mb-10">
         <h1 className="text-3xl font-black text-blue-900 tracking-tight italic">WAITER DASHBOARD</h1>
-        <div className="flex gap-4">
+        <div className="flex items-center gap-4">
+            <UserProfileMenu />
             <span className="flex items-center gap-1 text-xs font-bold bg-green-100 text-green-700 px-3 py-1 rounded-full border border-green-200">● SERVER ONLINE</span>
         </div>
       </header>
