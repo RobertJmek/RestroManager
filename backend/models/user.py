@@ -31,19 +31,8 @@ class User(UserBase, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     hashed_password: str
 
-class UserCreate(SQLModel):
-    name: str = Field(min_length=2, max_length=100)
-    email: EmailStr
-    phone: str
+class UserCreate(UserBase):
     password: str = Field(min_length=8)
-    role: UserRole = Field(default=UserRole.customer)
-
-    @field_validator("phone")
-    @classmethod
-    def validate_phone(cls, v):
-        if not re.match(r"^\+?\d{7,20}$", v):
-            raise ValueError("Numărul de telefon trebuie să conțină între 7 și 20 de cifre și poate începe cu '+'.")
-        return v
 
 class UserRead(UserBase):
     id: int
