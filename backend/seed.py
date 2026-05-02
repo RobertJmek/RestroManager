@@ -70,6 +70,9 @@ def seed_data():
                 Table(number=1, capacity=4, location="Lângă Geam"),
                 Table(number=2, capacity=2, location="Terasă"),
                 Table(number=3, capacity=4, location="Terasă"),
+                Table(number=4, capacity=4, location="Salon Principal"),
+                Table(number=5, capacity=6, location="Salon Principal"),
+                Table(number=6, capacity=2, location="Lângă Bar"),
             ]
             session.add_all(tables)
         else:
