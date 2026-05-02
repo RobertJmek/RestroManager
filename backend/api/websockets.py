@@ -29,16 +29,21 @@ async def websocket_endpoint(websocket: WebSocket, role: str, token: str = Query
         await websocket.close(code=WS_CLOSE_AUTH_FAILURE)
         return
 
-    # Înregistrăm conexiunea fără a o accepta din nou
-    if role not in manager.active_connections:
-        manager.active_connections[role] = []
-    manager.active_connections[role].append(websocket)
+    # Normalize role to lowercase so broadcasts always find the right channel
+    normalized_role = role.lower()
+    # JWT-derived table_id for guest connections (cannot be spoofed via payload)
+    jwt_table_id = payload.get("table_id")
+
+    if normalized_role not in manager.active_connections:
+        manager.active_connections[normalized_role] = []
+    manager.active_connections[normalized_role].append(websocket)
     try:
         while True:
             data = await websocket.receive_json()
             
-            # ACȚIUNE: Bucătarul marchează comanda ca gata 
-            if data.get("action") == "ORDER_READY":
+            # ACȚIUNE: Bucătarul marchează comanda ca gata
+            # Only chef connections are allowed to send ORDER_READY
+            if data.get("action") == "ORDER_READY" and normalized_role == "chef":
                 await manager.broadcast_to_role("waiter", {
                     "event": "FOOD_READY",
                     "table": data.get("table"),
@@ -46,13 +51,15 @@ async def websocket_endpoint(websocket: WebSocket, role: str, token: str = Query
                     "type": "success"
                 })
                 
-            # ACȚIUNE: Clientul cheamă chelnerul 
+            # ACȚIUNE: Clientul cheamă chelnerul
+            # Use the JWT-derived table_id to prevent guests spoofing another table
             if data.get("action") == "CALL_WAITER":
+                table = jwt_table_id if jwt_table_id is not None else data.get("table")
                 await manager.broadcast_to_role("waiter", {
                     "event": "URGENT_CALL",
-                    "table": data.get("table"),
+                    "table": table,
                     "message": "⚠️ Solicitare asistență la masă!"
                 })
 
     except WebSocketDisconnect:
-        manager.disconnect(websocket, role)
+        manager.disconnect(websocket, normalized_role)

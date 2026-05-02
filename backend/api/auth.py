@@ -13,7 +13,8 @@ router = APIRouter(prefix="/auth", tags=["Authentication"])
 @router.post("/register", response_model=UserRead, status_code=status.HTTP_201_CREATED)
 async def register(user_in: UserCreate, session: Session = Depends(get_session)):
     """
-    Înregistrează un utilizator nou (Waiter, Chef, Manager).
+    Înregistrează un utilizator nou cu rolul Customer.
+    Conturile de personal (Waiter, Chef, Manager) sunt gestionate de administratori.
     """
     # Verificăm dacă email-ul există deja
     existing_user = session.exec(select(User).where(User.email == user_in.email)).first()

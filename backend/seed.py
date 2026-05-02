@@ -37,9 +37,9 @@ def create_user_if_not_exists(session: Session, name: str, email: str, phone: st
 def seed_data():
     with Session(engine) as session:
         # 1. Utilizatori
-        create_user_if_not_exists(session, "Admin Manager", "manager@restro.com", "+40700111222", UserRole.manager, "manager")
-        create_user_if_not_exists(session, "Andrei Waiter", "waiter@restro.com", "+40700333444", UserRole.waiter, "waiter")
-        create_user_if_not_exists(session, "Chef Roberto", "chef@restro.com", "+40700555666", UserRole.chef, "chef")
+        create_user_if_not_exists(session, "Admin Manager", "manager@restro.com", "+40700111222", UserRole.manager, "Manager@RestroApp2024!")
+        create_user_if_not_exists(session, "Andrei Waiter", "waiter@restro.com", "+40700333444", UserRole.waiter, "Waiter@RestroApp2024!")
+        create_user_if_not_exists(session, "Chef Roberto", "chef@restro.com", "+40700555666", UserRole.chef, "Chef@RestroApp2024!")
         
         session.commit()
 
