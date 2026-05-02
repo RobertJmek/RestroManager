@@ -52,9 +52,16 @@ async def websocket_endpoint(websocket: WebSocket, role: str, token: str = Query
                 })
                 
             # ACȚIUNE: Clientul cheamă chelnerul
-            # Use the JWT-derived table_id to prevent guests spoofing another table
+            # Guests must use the JWT-derived table_id (cannot be spoofed).
+            # Staff (waiter/manager) may supply the table via payload since they are trusted.
             if data.get("action") == "CALL_WAITER":
-                table = jwt_table_id if jwt_table_id is not None else data.get("table")
+                if normalized_role == "guest":
+                    # For guests, only proceed if the JWT carries a valid table_id
+                    if jwt_table_id is None:
+                        continue
+                    table = jwt_table_id
+                else:
+                    table = data.get("table")
                 await manager.broadcast_to_role("waiter", {
                     "event": "URGENT_CALL",
                     "table": table,
