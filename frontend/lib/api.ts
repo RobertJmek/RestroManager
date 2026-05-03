@@ -33,8 +33,7 @@ export async function apiRequest(
 
   // Verificăm expirarea înainte de orice request
   if (token && !isTokenValid(token)) {
-    logout();
-    return new Response(null, { status: 401 });
+    return new Response(JSON.stringify({ detail: "Token expirat. Te rugăm să te autentifici din nou." }), { status: 401, headers: { "Content-Type": "application/json" } });
   }
 
   const headers: Record<string, string> = {

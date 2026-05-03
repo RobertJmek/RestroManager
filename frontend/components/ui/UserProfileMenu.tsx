@@ -52,9 +52,12 @@ export default function UserProfileMenu({ className = "" }: UserProfileMenuProps
       if (res.ok) {
         const data = await res.json();
         setFormData({ name: data.name || "", phone: data.phone || "" });
+      } else {
+        const err = await res.json().catch(() => ({}));
+        setSaveMessage({ type: "error", text: `Eroare ${res.status}: ${err.detail || "Nu s-au putut încărca datele."}` });
       }
     } catch (error) {
-      console.error(error);
+      setSaveMessage({ type: "error", text: `Conexiune eșuată: ${error}` });
     } finally {
       setIsLoading(false);
     }
