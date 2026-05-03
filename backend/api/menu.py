@@ -68,6 +68,11 @@ class CategoryRead(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class CategoryUpdate(BaseModel):
+    name: Optional[str] = Field(default=None, min_length=2, max_length=50)
+    description: Optional[str] = Field(default=None, max_length=255)
+
+
 # --- Menu endpoints ---
 
 @menu_router.get("/", response_model=List[MenuItemRead])
@@ -280,3 +285,55 @@ async def create_category(
     session.commit()
     session.refresh(db_category)
     return db_category
+
+
+@category_router.put("/{category_id}", response_model=CategoryRead)
+async def update_category(
+    category_id: int,
+    category_in: CategoryUpdate,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(require_role(["Manager"]))
+):
+    """Actualizează o categorie (doar Manager)."""
+    db_category = session.get(Category, category_id)
+    if not db_category:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Categoria nu a fost găsită")
+
+    if category_in.name and category_in.name != db_category.name:
+        existing = session.exec(select(Category).where(Category.name == category_in.name)).first()
+        if existing:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Există deja o categorie cu acest nume")
+
+    update_data = category_in.model_dump(exclude_unset=True)
+    for key, value in update_data.items():
+        setattr(db_category, key, value)
+
+    session.add(db_category)
+    session.commit()
+    session.refresh(db_category)
+    return db_category
+
+
+@category_router.delete("/{category_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_category(
+    category_id: int,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(require_role(["Manager"]))
+):
+    """Șterge o categorie (doar Manager)."""
+    db_category = session.get(Category, category_id)
+    if not db_category:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Categoria nu a fost găsită")
+
+    items_count = session.exec(
+        select(MenuItem).where(MenuItem.category_id == category_id)
+    ).count()
+
+    if items_count > 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Nu se poate șterge categoria cu {items_count} produse. Reatribuiți sau ștergeți produsele mai întâi."
+        )
+
+    session.delete(db_category)
+    session.commit()
