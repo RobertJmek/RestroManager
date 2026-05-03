@@ -70,6 +70,11 @@ export default function ManagerPage() {
 
   const [toast, setToast] = useState<{ message: string; type: "success" | "error"; visible: boolean } | null>(null);
 
+  const [activeTab, setActiveTab] = useState<"products" | "categories">("products");
+  const [categoryForm, setCategoryForm] = useState({ name: "", description: "" });
+  const [editingCategory, setEditingCategory] = useState<Category | null>(null);
+  const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
+
   const showToast = useCallback((message: string, type: "success" | "error" = "success") => {
     setToast({ message, type, visible: true });
     setTimeout(() => setToast(null), 3000);
@@ -242,6 +247,66 @@ export default function ManagerPage() {
     }
   }
 
+  function handleAddCategory() {
+    setEditingCategory(null);
+    setCategoryForm({ name: "", description: "" });
+    setIsCategoryModalOpen(true);
+  }
+
+  function handleEditCategory(cat: Category) {
+    setEditingCategory(cat);
+    setCategoryForm({ name: cat.name, description: cat.description || "" });
+    setIsCategoryModalOpen(true);
+  }
+
+  async function handleSaveCategory() {
+    if (!categoryForm.name.trim()) {
+      showToast("Numele categoriei este obligatoriu", "error");
+      return;
+    }
+    const payload = {
+      name: categoryForm.name.trim(),
+      description: categoryForm.description.trim() || null,
+    };
+    setSaving(true);
+    try {
+      let res: Response;
+      if (editingCategory) {
+        res = await apiRequest(`/categories/${editingCategory.id}`, { method: "PUT", body: JSON.stringify(payload) });
+      } else {
+        res = await apiRequest("/categories", { method: "POST", body: JSON.stringify(payload) });
+      }
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.detail || "Salvare categorie eșuată");
+      }
+      setIsCategoryModalOpen(false);
+      setCategoryForm({ name: "", description: "" });
+      setEditingCategory(null);
+      loadData();
+      showToast(editingCategory ? "Categorie actualizată" : "Categorie adăugată");
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "Eroare la salvare", "error");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleDeleteCategory(cat: Category) {
+    if (!confirm(`Ești sigur că vrei să ștergi categoria "${cat.name}"?`)) return;
+    try {
+      const res = await apiRequest(`/categories/${cat.id}`, { method: "DELETE" });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.detail || "Ștergere categorie eșuată");
+      }
+      loadData();
+      showToast("Categorie ștearsă");
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "Eroare la ștergere", "error");
+    }
+  }
+
   return (
     <ClientRoleGuard role="Manager" theme="dark" spinnerColor="border-green-500">
       <div className="min-h-screen bg-slate-950 text-slate-100 p-8">
@@ -252,9 +317,36 @@ export default function ManagerPage() {
           </div>
           <div className="flex items-center gap-6">
             <UserProfileMenu />
-            <Button className="bg-green-600 hover:bg-green-500 font-bold" onClick={handleAddNew}>+ Adaugă Produs Nou</Button>
+            <div className="flex gap-1 bg-slate-800 rounded-lg p-1">
+              <button
+                onClick={() => setActiveTab("products")}
+                className={`px-4 py-1.5 rounded-md text-sm font-semibold transition-colors ${
+                  activeTab === "products"
+                    ? "bg-green-600 text-white"
+                    : "text-slate-400 hover:text-white"
+                }`}
+              >
+                Produse
+              </button>
+              <button
+                onClick={() => setActiveTab("categories")}
+                className={`px-4 py-1.5 rounded-md text-sm font-semibold transition-colors ${
+                  activeTab === "categories"
+                    ? "bg-green-600 text-white"
+                    : "text-slate-400 hover:text-white"
+                }`}
+              >
+                Categorii
+              </button>
+            </div>
           </div>
         </header>
+
+        {activeTab === "products" && (
+        <>
+        <div className="flex items-center gap-4 mb-6">
+          <Button className="bg-green-600 hover:bg-green-500 font-bold" onClick={handleAddNew}>+ Adaugă Produs Nou</Button>
+        </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
           <Card className="bg-slate-900 border-slate-800"><CardHeader><CardTitle className="text-slate-400 text-sm uppercase">Încasări Zilnice</CardTitle></CardHeader><CardContent><p className="text-3xl font-bold text-green-400">1,250.50 RON</p></CardContent></Card>
@@ -329,6 +421,86 @@ export default function ManagerPage() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+        </>
+        )}
+
+        {activeTab === "categories" && (
+        <>
+        <div className="flex justify-between items-center mb-6">
+          <h2 className="text-2xl font-bold text-white">Gestiune Categorii</h2>
+          <Button className="bg-green-600 hover:bg-green-500 font-bold" onClick={handleAddCategory}>+ Adaugă Categorie</Button>
+        </div>
+
+        {categories.length === 0 ? (
+          <Card className="bg-slate-900 border-slate-800 p-8 text-center">
+            <p className="text-slate-500 text-lg mb-4">Nu există categorii create.</p>
+            <Button className="bg-green-600 hover:bg-green-500 font-bold" onClick={handleAddCategory}>+ Creează Prima Categorie</Button>
+          </Card>
+        ) : (
+          <div className="grid gap-4">
+            {categories.map((cat) => (
+              <Card key={cat.id} className="bg-slate-900 border-slate-800 hover:border-green-500/30 transition-all">
+                <CardContent className="p-6">
+                  <div className="flex justify-between items-start">
+                    <div className="flex-1">
+                      <h3 className="text-xl font-bold text-white mb-1">{cat.name}</h3>
+                      {cat.description && <p className="text-slate-400">{cat.description}</p>}
+                    </div>
+                    <div className="flex gap-2">
+                      <Button variant="outline" size="sm" className="border-slate-700 text-slate-300 hover:bg-slate-800" onClick={() => handleEditCategory(cat)}>
+                        <Pencil size={14} className="mr-1" /> Editează
+                      </Button>
+                      <Button variant="outline" size="sm" className="border-red-900/50 text-red-400 hover:bg-red-950" onClick={() => handleDeleteCategory(cat)}>
+                        <Trash2 size={14} />
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
+
+        <Dialog open={isCategoryModalOpen} onOpenChange={(open) => { if (!open) { setIsCategoryModalOpen(false); setEditingCategory(null); } }}>
+          <DialogContent className="bg-slate-900 border-slate-700 text-white sm:max-w-[450px]">
+            <DialogHeader>
+              <DialogTitle className="text-2xl font-bold text-green-400">
+                {editingCategory ? "Editează Categorie" : "Adaugă Categorie"}
+              </DialogTitle>
+            </DialogHeader>
+            <div className="grid gap-4 py-2">
+              <div>
+                <label className="text-sm text-slate-400 mb-1.5 block">Nume Categorie *</label>
+                <input
+                  type="text"
+                  value={categoryForm.name}
+                  onChange={(e) => setCategoryForm({ ...categoryForm, name: e.target.value })}
+                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2.5 text-white placeholder-slate-500 focus:border-green-500 outline-none transition-colors"
+                  placeholder="Ex: Băuturi"
+                />
+              </div>
+              <div>
+                <label className="text-sm text-slate-400 mb-1.5 block">Descriere</label>
+                <textarea
+                  value={categoryForm.description}
+                  onChange={(e) => setCategoryForm({ ...categoryForm, description: e.target.value })}
+                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2.5 text-white placeholder-slate-500 focus:border-green-500 outline-none transition-colors min-h-[80px] resize-y"
+                  placeholder="Descrierea categoriei..."
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" className="border-slate-700 text-slate-300 hover:bg-slate-800" onClick={() => { setIsCategoryModalOpen(false); setEditingCategory(null); }}>
+                Anulează
+              </Button>
+              <Button className="bg-green-600 hover:bg-green-500 font-bold" onClick={handleSaveCategory} disabled={saving}>
+                {saving ? "Se salvează..." : editingCategory ? "Salvează" : "Adaugă"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+        </>
+        )}
 
         {toast && <div className={`fixed bottom-4 right-4 px-6 py-3 rounded-lg shadow-lg transform transition-all duration-300 z-50 ${toast.type === "success" ? "bg-green-600" : "bg-red-600"} text-white font-medium`}>{toast.message}</div>}
       </div>
