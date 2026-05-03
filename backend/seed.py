@@ -54,10 +54,13 @@ def seed_data():
             
             # 3. Meniu (doar daca am adaugat categorii noi)
             print("🍔 Se creează Meniul...")
+            DRINK_IMG = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyMDAiIGhlaWdodD0iMjAwIj48cmVjdCB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgZmlsbD0iIzQyODNlNCIvPjx0ZXh0IHg9IjEwMCIgeT0iMTEwIiBmb250LXNpemU9IjgwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmaWxsPSJ3aGl0ZSI+8J+NuTwvdGV4dD48L3N2Zz4="
+            BURGER_IMG = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyMDAiIGhlaWdodD0iMjAwIj48cmVjdCB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgZmlsbD0iI2EwNTIyZCIvPjx0ZXh0IHg9IjEwMCIgeT0iMTEwIiBmb250LXNpemU9IjgwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmaWxsPSJ3aGl0ZSI+8J+NlDwvdGV4dD48L3N2Zz4="
+            PIZZA_IMG = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyMDAiIGhlaWdodD0iMjAwIj48cmVjdCB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgZmlsbD0iI2Y5NzMxNiIvPjx0ZXh0IHg9IjEwMCIgeT0iMTEwIiBmb250LXNpemU9IjgwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmaWxsPSJ3aGl0ZSI+8J+NlTwvdGV4dD48L3N2Zz4="
             items = [
-                MenuItem(name="Limonadă cu mentă", description="Proaspătă, cu lămâi stoarse", category_id=c1.id, price=17.0, prep_time_minutes=3),
-                MenuItem(name="Classic Cheeseburger", description="Chiflă brioche, carne vită, dublu cheddar", category_id=c2.id, price=45.0, prep_time_minutes=15),
-                MenuItem(name="Pizza Margherita", description="Sos roșii, mozzarella fior di latte", category_id=c3.id, price=32.0, prep_time_minutes=10),
+                MenuItem(name="Limonadă cu mentă", description="Proaspătă, cu lămâi stoarse", category_id=c1.id, price=17.0, prep_time_minutes=3, image_url=DRINK_IMG),
+                MenuItem(name="Classic Cheeseburger", description="Chiflă brioche, carne vită, dublu cheddar", category_id=c2.id, price=45.0, prep_time_minutes=15, image_url=BURGER_IMG),
+                MenuItem(name="Pizza Margherita", description="Sos roșii, mozzarella fior di latte", category_id=c3.id, price=32.0, prep_time_minutes=10, image_url=PIZZA_IMG),
             ]
             session.add_all(items)
         else:
