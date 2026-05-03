@@ -1,25 +1,39 @@
 "use client";
 
-import React, { useState, useEffect } from 'react'; // Adăugat useEffect
+import React, { useState, useEffect } from 'react';
 import { Card, CardDescription, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { BellRing, ShoppingCart, CreditCard, Trash2 } from "lucide-react"; // Importăm iconițe adiționale
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { BellRing, ShoppingCart, CreditCard, Trash2 } from "lucide-react";
 
-// Mock Data... (rămâne neschimbat)
-const MOCK_MENU = [
-  { id: 1, name: "Burger Wagyu Suprem", description: "Carne wagyu, trufe, cheddar maturat și chiflă neagră cu susan", price: 65, category: "Mains", img: "🍔" },
-  { id: 2, name: "Pizza Quattro Formaggi", description: "Mozzarella, gorgonzola, parmezan, emmental, pe un blat subțire napoletan", price: 45, category: "Mains", img: "🍕" },
-  { id: 3, name: "Cocktail Aperol Sunset", description: "Aperol, prosecco, apă minerală și felii de portocală roșie proaspătă", price: 25, category: "Drinks", img: "🍹" },
-  { id: 4, name: "Lava Cake Artizanal", description: "Ciocolată belgiană fierbinte asortată cu înghețată de vanilie de Madagascar", price: 30, category: "Desserts", img: "🌋" }
-];
+const CATEGORY_EMOJIS: Record<string, string> = {
+  "Băuturi": "🍹", "Drinks": "🍹",
+  "Burgeri": "🍔", "Burgers": "🍔",
+  "Pizza": "🍕",
+  "Desert": "🍰", "Desserts": "🍰",
+  "Mains": "🍽️", "Main Course": "🍽️",
+};
+
+function getCategoryEmoji(category: string): string {
+  return CATEGORY_EMOJIS[category] || "🍽️";
+}
+
+interface MenuItem {
+  id: number;
+  name: string;
+  description: string | null;
+  price: number;
+  category: string;
+  image_url: string | null;
+  is_available: boolean;
+}
 
 import { useSearchParams } from 'next/navigation';
 import { Suspense } from 'react';
 import UserProfileMenu from "../../components/ui/UserProfileMenu";
 
 function CustomerContent() {
-  const [selectedItem, setSelectedItem] = useState<any>(null);
+  const [selectedItem, setSelectedItem] = useState<MenuItem | null>(null);
   const [instructions, setInstructions] = useState("");
   const [socket, setSocket] = useState<WebSocket | null>(null);
   const [tableId, setTableId] = useState<number | null>(null);
@@ -28,17 +42,33 @@ function CustomerContent() {
   const searchParams = useSearchParams();
   const urlTableId = searchParams.get('table_id');
 
-  // Starea pentru coșul de cumpărături
   const [cart, setCart] = useState<any[]>([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
 
+  const [menu, setMenu] = useState<MenuItem[]>([]);
+  const [menuLoading, setMenuLoading] = useState(true);
+  const [menuError, setMenuError] = useState<string | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+
+  const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
+
+  const showToast = (message: string, type: "success" | "error" = "success") => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3000);
+  };
+
   // Autentificare Guest bazată pe URL
   useEffect(() => {
-    async function authGuest() {
-      if (!urlTableId) return;
+    if (!urlTableId) {
+      setMenuLoading(false);
+      setMenuError("Lipsește parametrul table_id din URL");
+      return;
+    }
 
-      const tId = parseInt(urlTableId);
-      setTableId(tId);
+    const tId = parseInt(urlTableId);
+    setTableId(tId);
+
+    async function authGuest() {
 
       try {
         const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api"}/auth/guest-login/${tId}`, {
@@ -51,9 +81,14 @@ function CustomerContent() {
           localStorage.setItem("guest_table_id", tId.toString());
           setGuestToken(data.access_token);
           console.log("Authenticated as Guest for table", tId);
+        } else {
+          setMenuLoading(false);
+          setMenuError("Autentificare eșuată");
         }
       } catch (err) {
         console.error("Guest auth failed", err);
+        setMenuLoading(false);
+        setMenuError("Eroare de autentificare");
       }
     }
 
@@ -69,6 +104,30 @@ function CustomerContent() {
     return () => ws.close();
   }, [guestToken]);
 
+  // Fetch menu from API
+  useEffect(() => {
+    if (!guestToken) return;
+    const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
+    setMenuLoading(true);
+    setMenuError(null);
+    fetch(`${API_URL}/menu`, {
+      headers: { Authorization: `Bearer ${guestToken}` },
+    })
+      .then(res => {
+        if (!res.ok) throw new Error(`Eroare ${res.status}`);
+        return res.json();
+      })
+      .then(data => {
+        setMenu(data);
+        setMenuLoading(false);
+      })
+      .catch(err => {
+        console.error("Menu fetch failed:", err);
+        setMenuError(err instanceof Error ? err.message : "Eroare necunoscută");
+        setMenuLoading(false);
+      });
+  }, [guestToken]);
+
   // Funcție pentru Chemare Chelner
   const handleCallWaiter = () => {
     if (socket && socket.readyState === WebSocket.OPEN) {
@@ -76,9 +135,9 @@ function CustomerContent() {
         action: "CALL_WAITER",
         table: tableId || 0
       }));
-      alert("🔔 Chelnerul a fost solicitat la masa ta!");
+      showToast("🔔 Chelnerul a fost solicitat la masa ta!");
     } else {
-      alert("❌ Eroare de conexiune. Încearcă din nou.");
+      showToast("❌ Eroare de conexiune. Încearcă din nou.", "error");
     }
   };
 
@@ -95,7 +154,7 @@ function CustomerContent() {
     setCart([...cart, newItem]);
     setInstructions("");
     setSelectedItem(null);
-    alert(`✅ ${item.name} a fost adăugat în coș!`);
+    showToast(`✅ ${item.name} a fost adăugat în coș!`);
   };
 
   const removeFromCart = (idToRemove: string) => {
@@ -107,7 +166,7 @@ function CustomerContent() {
   const handleCheckout = async () => {
     if (cart.length === 0) return;
     if (!guestToken) {
-      alert("❌ Sesiunea de oaspete nu este inițializată. Te rugăm să reîncărci pagina.");
+      showToast("❌ Sesiunea de oaspete nu este inițializată. Te rugăm să reîncărci pagina.", "error");
       return;
     }
 
@@ -132,20 +191,33 @@ function CustomerContent() {
 
       if (response.ok) {
         const result = await response.json();
-        alert(`🔒 Redirecționare către Stripe pentru suma de ${cartTotal.toFixed(2)} RON...\n\n(AI Priority atribuit comenzii: ${result.ai_safety})`);
+        showToast(`🔒 Redirecționare către Stripe pentru suma de ${cartTotal.toFixed(2)} RON...`);
+        console.log("AI Priority:", result.ai_safety);
 
         setCart([]);
         setIsCartOpen(false);
         window.location.replace("/customer/success");
       } else {
         const errData = await response.json();
-        alert(`❌ Eroare: ${errData.detail || "Nu s-a putut plasa comanda."}`);
+        showToast(`❌ Eroare: ${errData.detail || "Nu s-a putut plasa comanda."}`, "error");
       }
     } catch (error) {
       console.error("Eroare conexiune:", error);
-      alert("❌ Nu ne-am putut conecta la server.");
+      showToast("❌ Nu ne-am putut conecta la server.", "error");
     }
   };
+
+  const availableItems = menu.filter(i => i.is_available);
+  const categories = Array.from(new Set(availableItems.map(i => i.category))).sort();
+  const filtered = selectedCategory
+    ? availableItems.filter(i => i.category === selectedCategory)
+    : availableItems;
+  const grouped = selectedCategory
+    ? null
+    : categories.reduce<Record<string, MenuItem[]>>((acc, cat) => {
+        acc[cat] = filtered.filter(i => i.category === cat);
+        return acc;
+      }, {});
 
   return (
     <div className="min-h-screen bg-slate-950 p-4 sm:p-8 font-sans text-slate-100">
@@ -165,52 +237,181 @@ function CustomerContent() {
         </p>
       </div>
 
-      {/* Grid Catalog */}
-      <div className="max-w-5xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-8 lg:gap-10">
-        {MOCK_MENU.map((item) => (
-          <Card key={item.id} className="bg-slate-900 border-slate-800 text-slate-100 shadow-2xl overflow-hidden hover:border-violet-500/50 transition-all group">
-            <div className="flex flex-col sm:flex-row p-6 sm:p-8 h-full">
-              <div className="text-7xl sm:text-8xl sm:mr-8 my-auto drop-shadow-2xl text-center mb-4 sm:mb-0 group-hover:scale-110 transition-transform duration-500">
-                {item.img}
-              </div>
-              <div className="flex flex-col flex-1">
-                <CardTitle className="text-2xl sm:text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-slate-400 mb-3">
-                  {item.name}
-                </CardTitle>
-                <CardDescription className="text-slate-400 text-sm sm:text-base mb-6 leading-relaxed flex-grow">
-                  {item.description}
-                </CardDescription>
-                <div className="flex items-center justify-between mt-auto pt-4 border-t border-slate-800">
-                  <span className="text-2xl font-black text-violet-400">{item.price.toFixed(2)} <span className="text-sm font-medium text-slate-500">RON</span></span>
+      {/* Filter bar */}
+      {!menuLoading && !menuError && categories.length > 0 && (
+        <div className="max-w-5xl mx-auto mb-10 flex flex-wrap gap-2 justify-center">
+          <button
+            onClick={() => setSelectedCategory(null)}
+            className={`px-5 py-2 rounded-full text-sm font-semibold transition-all ${
+              selectedCategory === null
+                ? "bg-violet-600 text-white shadow-lg"
+                : "bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white"
+            }`}
+          >
+            Toate
+          </button>
+          {categories.map(cat => (
+            <button
+              key={cat}
+              onClick={() => setSelectedCategory(selectedCategory === cat ? null : cat)}
+              className={`px-5 py-2 rounded-full text-sm font-semibold transition-all ${
+                selectedCategory === cat
+                  ? "bg-violet-600 text-white shadow-lg"
+                  : "bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white"
+              }`}
+            >
+              {getCategoryEmoji(cat)} {cat}
+            </button>
+          ))}
+        </div>
+      )}
 
-                  <Dialog>
-                    <DialogTrigger render={<Button variant="secondary" className="bg-violet-600 hover:bg-violet-500 text-white rounded-full px-8 py-6 text-md font-semibold transition-all hover:-translate-y-1" />}>
-                      Comandă
-                    </DialogTrigger>
-                    <DialogContent className="bg-slate-900 border-slate-700 text-white sm:max-w-[450px]">
-                      <DialogHeader>
-                        <DialogTitle className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-violet-400 to-indigo-400">{item.name}</DialogTitle>
-                      </DialogHeader>
-                      <div className="grid gap-4 py-6">
-                        <textarea
-                          placeholder="Note speciale (alergii, preferințe)..."
-                          className="w-full bg-slate-950 text-white rounded-xl p-5 min-h-[120px] border border-slate-700 focus:border-violet-500 outline-none"
-                          value={instructions}
-                          onChange={(e) => setInstructions(e.target.value)}
+      {/* Grid Catalog */}
+      <div className="max-w-5xl mx-auto">
+        {menuLoading && (
+          <div className="text-center py-12">
+            <div className="w-8 h-8 border-4 border-violet-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+            <div className="text-slate-400 text-xl">Se încarcă meniul...</div>
+          </div>
+        )}
+        {!menuLoading && menuError && (
+          <div className="text-center py-12">
+            <div className="text-slate-400 text-xl mb-4">{menuError}</div>
+            {!urlTableId && (
+              <a href="/menu" className="text-violet-400 hover:text-violet-300 underline text-lg">
+                Vezi meniul public
+              </a>
+            )}
+          </div>
+        )}
+        {!menuLoading && !menuError && filtered.length === 0 && (
+          <div className="text-center py-12">
+            <div className="text-slate-400 text-xl">Niciun produs în această categorie.</div>
+          </div>
+        )}
+
+        {/* Grouped by category */}
+        {!menuLoading && !menuError && grouped && Object.entries(grouped).map(([cat, items]) => (
+          items.length > 0 && (
+            <div key={cat} className="mb-12">
+              <h2 className="text-2xl font-bold text-white mb-6 flex items-center gap-2">
+                <span>{getCategoryEmoji(cat)}</span> {cat}
+              </h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 lg:gap-10">
+                {items.map((item) => (
+                  <Card key={item.id} className="bg-slate-900 border-slate-800 text-slate-100 shadow-2xl overflow-hidden hover:border-violet-500/50 transition-all group">
+                    <div className="flex flex-col sm:flex-row p-6 sm:p-8 h-full">
+                      {item.image_url ? (
+                        <img
+                          src={item.image_url}
+                          alt={item.name}
+                          className="w-24 h-24 sm:w-32 sm:h-32 sm:mr-8 mx-auto sm:mx-0 self-start rounded-xl object-cover shadow-2xl mb-4 sm:mb-0 shrink-0 group-hover:scale-110 transition-transform duration-500"
                         />
+                      ) : (
+                        <div className="text-7xl sm:text-8xl sm:mr-8 mx-auto sm:mx-0 self-start drop-shadow-2xl text-center mb-4 sm:mb-0 shrink-0 group-hover:scale-110 transition-transform duration-500">
+                          {getCategoryEmoji(item.category)}
+                        </div>
+                      )}
+                      <div className="flex flex-col flex-1">
+                        <CardTitle className="text-2xl sm:text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-slate-400 mb-3">
+                          {item.name}
+                        </CardTitle>
+                        <CardDescription className="text-slate-400 text-sm sm:text-base mb-6 leading-relaxed flex-grow">
+                          {item.description}
+                        </CardDescription>
+                        <div className="flex items-center justify-between mt-auto pt-4 border-t border-slate-800">
+                          <span className="text-2xl font-black text-violet-400">{item.price.toFixed(2)} <span className="text-sm font-medium text-slate-500">RON</span></span>
+
+                          <Dialog>
+                            <DialogTrigger render={<Button variant="secondary" className="bg-violet-600 hover:bg-violet-500 text-white rounded-full px-8 py-6 text-md font-semibold transition-all hover:-translate-y-1" />}>
+                              Comandă
+                            </DialogTrigger>
+                            <DialogContent className="bg-slate-900 border-slate-700 text-white sm:max-w-[450px]">
+                              <DialogHeader>
+                                <DialogTitle className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-violet-400 to-indigo-400">{item.name}</DialogTitle>
+                              </DialogHeader>
+                              <div className="grid gap-4 py-6">
+                                <textarea
+                                  placeholder="Note speciale (alergii, preferințe)..."
+                                  className="w-full bg-slate-950 text-white rounded-xl p-5 min-h-[120px] border border-slate-700 focus:border-violet-500 outline-none"
+                                  value={instructions}
+                                  onChange={(e) => setInstructions(e.target.value)}
+                                />
+                              </div>
+                              <DialogFooter>
+                                <Button className="w-full bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 py-7 text-lg font-bold rounded-full" onClick={() => handleAddToCart(item)}>
+                                  🛒 Adaugă în coș
+                                </Button>
+                              </DialogFooter>
+                            </DialogContent>
+                          </Dialog>
+                        </div>
                       </div>
-                      <DialogFooter>
-                        <Button className="w-full bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 py-7 text-lg font-bold rounded-full" onClick={() => handleAddToCart(item)}>
-                          🛒 Adaugă în coș
-                        </Button>
-                      </DialogFooter>
-                    </DialogContent>
-                  </Dialog>
-                </div>
+                    </div>
+                  </Card>
+                ))}
               </div>
             </div>
-          </Card>
+          )
         ))}
+
+        {/* Flat list when category selected */}
+        {!menuLoading && !menuError && !grouped && filtered.length > 0 && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 lg:gap-10">
+            {filtered.map((item) => (
+              <Card key={item.id} className="bg-slate-900 border-slate-800 text-slate-100 shadow-2xl overflow-hidden hover:border-violet-500/50 transition-all group">
+                <div className="flex flex-col sm:flex-row p-6 sm:p-8 h-full">
+                  {item.image_url ? (
+                    <img
+                      src={item.image_url}
+                      alt={item.name}
+                      className="w-24 h-24 sm:w-32 sm:h-32 sm:mr-8 mx-auto sm:mx-0 self-start rounded-xl object-cover shadow-2xl mb-4 sm:mb-0 shrink-0 group-hover:scale-110 transition-transform duration-500"
+                    />
+                  ) : (
+                    <div className="text-7xl sm:text-8xl sm:mr-8 mx-auto sm:mx-0 self-start drop-shadow-2xl text-center mb-4 sm:mb-0 shrink-0 group-hover:scale-110 transition-transform duration-500">
+                      {getCategoryEmoji(item.category)}
+                    </div>
+                  )}
+                  <div className="flex flex-col flex-1">
+                    <CardTitle className="text-2xl sm:text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-slate-400 mb-3">
+                      {item.name}
+                    </CardTitle>
+                    <CardDescription className="text-slate-400 text-sm sm:text-base mb-6 leading-relaxed flex-grow">
+                      {item.description}
+                    </CardDescription>
+                    <div className="flex items-center justify-between mt-auto pt-4 border-t border-slate-800">
+                      <span className="text-2xl font-black text-violet-400">{item.price.toFixed(2)} <span className="text-sm font-medium text-slate-500">RON</span></span>
+
+                      <Dialog>
+                        <DialogTrigger render={<Button variant="secondary" className="bg-violet-600 hover:bg-violet-500 text-white rounded-full px-8 py-6 text-md font-semibold transition-all hover:-translate-y-1" />}>
+                          Comandă
+                        </DialogTrigger>
+                        <DialogContent className="bg-slate-900 border-slate-700 text-white sm:max-w-[450px]">
+                          <DialogHeader>
+                            <DialogTitle className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-violet-400 to-indigo-400">{item.name}</DialogTitle>
+                          </DialogHeader>
+                          <div className="grid gap-4 py-6">
+                            <textarea
+                              placeholder="Note speciale (alergii, preferințe)..."
+                              className="w-full bg-slate-950 text-white rounded-xl p-5 min-h-[120px] border border-slate-700 focus:border-violet-500 outline-none"
+                              value={instructions}
+                              onChange={(e) => setInstructions(e.target.value)}
+                            />
+                          </div>
+                          <DialogFooter>
+                            <Button className="w-full bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 py-7 text-lg font-bold rounded-full" onClick={() => handleAddToCart(item)}>
+                              🛒 Adaugă în coș
+                            </Button>
+                          </DialogFooter>
+                        </DialogContent>
+                      </Dialog>
+                    </div>
+                  </div>
+                </div>
+              </Card>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* BUTON PLUTITOR: Cheamă Chelnerul (Issue 2.4) */}
@@ -278,6 +479,14 @@ function CustomerContent() {
           <span className="text-[10px] font-bold mt-1 uppercase leading-none">Ajutor</span>
         </Button>
       </div>
+
+      {toast && (
+        <div className={`fixed bottom-4 right-4 px-6 py-3 rounded-lg shadow-lg z-50 ${
+          toast.type === "success" ? "bg-green-600" : "bg-red-600"
+        } text-white font-medium`}>
+          {toast.message}
+        </div>
+      )}
     </div>
   );
 }
