@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+// import removed
 import { Lock, Mail, Loader2, UtensilsCrossed } from "lucide-react";
 import { isTokenValid, logout, decodeJwtPayload } from "../../lib/api";
 
@@ -16,22 +16,36 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(true); // starts true while checking
   const [error, setError] = useState("");
-  const router = useRouter();
+  // router removed
 
   // Dacă utilizatorul e deja autentificat, îl redirecționăm direct
   useEffect(() => {
-    const token = localStorage.getItem("token");
-    const role = localStorage.getItem("user_role");
-
-    if (token && role && ROLE_REDIRECTS[role]) {
-      if (isTokenValid(token)) {
-        window.location.href = ROLE_REDIRECTS[role];
-        return;
-      }
-      // Token expirat — curățăm
-      logout();
+    // Skip on server — localStorage not available
+    if (typeof window === "undefined") {
+      setLoading(false);
+      return;
     }
-    setLoading(false);
+
+    const checkAndRedirect = () => {
+      const token = localStorage.getItem("token");
+      if (token && isTokenValid(token)) {
+        const payload = decodeJwtPayload(token);
+        const role = payload?.role;
+        if (role && ROLE_REDIRECTS[role]) {
+          window.location.href = ROLE_REDIRECTS[role];
+          return; // nu mai facem setLoading, navigăm direct
+        }
+      }
+      // Token expirat sau invalid — curățăm
+      if (token) logout();
+      setLoading(false);
+    };
+
+    checkAndRedirect();
+
+    // Re-verificăm la pageshow (back/forward din bfcache)
+    window.addEventListener('pageshow', checkAndRedirect);
+    return () => window.removeEventListener('pageshow', checkAndRedirect);
   }, []);
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -66,12 +80,9 @@ export default function LoginPage() {
         throw new Error(`Rolul "${role}" nu are o pagină asociată.`);
       }
 
-      // Salvăm sesiunea
+      // Salvăm doar token-ul; rolul și numele se extrag din JWT la nevoie (L2 fix)
       localStorage.setItem("token", data.access_token);
-      localStorage.setItem("user_role", role);
-      localStorage.setItem("user_name", name);
 
-      // Redirecționăm cu navigare hard pentru a reseta starea aplicației
       window.location.href = ROLE_REDIRECTS[role];
     } catch (err: any) {
       setError(err.message);

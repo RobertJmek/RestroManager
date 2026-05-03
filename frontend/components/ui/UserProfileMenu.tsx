@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { User, LogOut, Settings, ChevronDown, Save, Loader2 } from "lucide-react";
-import { logout, apiRequest } from "@/lib/api";
+import { logout, apiRequest, getStoredUser } from "@/lib/api";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 
 interface UserProfileMenuProps {
@@ -21,8 +21,7 @@ export default function UserProfileMenu({ className = "" }: UserProfileMenuProps
   const [saveMessage, setSaveMessage] = useState({ type: "", text: "" });
 
   useEffect(() => {
-    const role = localStorage.getItem("user_role");
-    const name = localStorage.getItem("user_name");
+    const { role, name } = getStoredUser();
     
     if (!role || role === "Guest") {
       setUser({ role: null, name: null });
@@ -74,9 +73,8 @@ export default function UserProfileMenu({ className = "" }: UserProfileMenuProps
 
       if (res.ok) {
         const data = await res.json();
-        // Update live în UI
+        // Update live în UI (L2 fix: name comes from JWT, refreshed on next login)
         setUser(prev => ({ ...prev, name: data.name }));
-        localStorage.setItem("user_name", data.name);
         setSaveMessage({ type: "success", text: "Datele au fost salvate cu succes!" });
         
         // Închidem fereastra după o secundă

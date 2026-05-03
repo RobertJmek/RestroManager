@@ -17,7 +17,7 @@ async def websocket_endpoint(websocket: WebSocket, role: str, token: str = Query
     Rolul din JWT este title-cased (ex: "Chef"), iar calea WS este lowercase (ex: "chef").
     Comparația se face case-insensitive pentru a suporta această convenție.
     """
-    await websocket.accept()
+    # Validate JWT BEFORE accepting the connection (M1 fix)
     try:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
         token_role: str = payload.get("role", "")
@@ -28,6 +28,8 @@ async def websocket_endpoint(websocket: WebSocket, role: str, token: str = Query
     except jwt.PyJWTError:
         await websocket.close(code=WS_CLOSE_AUTH_FAILURE)
         return
+
+    await websocket.accept()
 
     # Normalize role to lowercase so broadcasts always find the right channel
     normalized_role = role.lower()
@@ -53,7 +55,7 @@ async def websocket_endpoint(websocket: WebSocket, role: str, token: str = Query
                 
             # ACȚIUNE: Clientul cheamă chelnerul
             # Guests must use the JWT-derived table_id (cannot be spoofed).
-            # Staff (waiter/manager) may supply the table via payload since they are trusted.
+            # Staff roles must provide a valid positive table number.
             if data.get("action") == "CALL_WAITER":
                 if normalized_role == "guest":
                     # For guests, only proceed if the JWT carries a valid table_id
@@ -62,6 +64,9 @@ async def websocket_endpoint(websocket: WebSocket, role: str, token: str = Query
                     table = jwt_table_id
                 else:
                     table = data.get("table")
+                    # Staff cannot spoof table — must provide a valid positive integer (M2 fix)
+                    if not isinstance(table, int) or table <= 0:
+                        continue
                 await manager.broadcast_to_role("waiter", {
                     "event": "URGENT_CALL",
                     "table": table,
@@ -69,4 +74,4 @@ async def websocket_endpoint(websocket: WebSocket, role: str, token: str = Query
                 })
 
     except WebSocketDisconnect:
-        manager.disconnect(websocket, normalized_role)
+        await manager.disconnect(websocket, normalized_role)

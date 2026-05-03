@@ -1,11 +1,18 @@
-const API_URL = "http://localhost:8000/api";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
 
-export function decodeJwtPayload(token: string): Record<string, any> | null {
+export function decodeJwtPayload(token: string): any {
+  if (!token || typeof token !== "string" || token === "undefined" || token === "null") {
+    return null;
+  }
   try {
-    const base64 = token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
+    const parts = token.split(".");
+    if (parts.length < 2) return null;
+    const base64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+    // Add padding if missing
     const padded = base64 + "=".repeat((4 - (base64.length % 4)) % 4);
     return JSON.parse(atob(padded));
-  } catch {
+  } catch (error) {
+    console.error("JWT Decode Error:", error);
     return null;
   }
 }
@@ -54,17 +61,24 @@ export async function apiRequest(
 export function logout() {
   if (typeof window !== "undefined") {
     localStorage.removeItem("token");
-    localStorage.removeItem("user_role");
-    localStorage.removeItem("user_name");
     localStorage.removeItem("table_id");
-    window.location.href = "/login";
+    setTimeout(() => {
+      window.location.href = "/login";
+    }, 0);
   }
 }
 
-export function getStoredUser(): { role: string | null; name: string | null } {
-  if (typeof window === "undefined") return { role: null, name: null };
+/**
+ * Retrieve user name and role from the stored JWT payload (L2 fix).
+ * No longer reading from separate localStorage keys.
+ */
+export function getStoredUser(): { name: string | null; role: string | null } {
+  if (typeof window === "undefined") return { name: null, role: null };
+  const token = localStorage.getItem("token");
+  if (!token) return { name: null, role: null };
+  const payload = decodeJwtPayload(token);
   return {
-    role: localStorage.getItem("user_role"),
-    name: localStorage.getItem("user_name"),
+    name: payload?.name ?? null,
+    role: payload?.role ?? null,
   };
 }

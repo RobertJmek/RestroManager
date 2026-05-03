@@ -1,9 +1,8 @@
 "use client"
 import React, { useEffect, useState } from 'react';
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Bell, CheckCircle2, AlertTriangle } from "lucide-react";
 import UserProfileMenu from "../../components/ui/UserProfileMenu";
-import { isTokenValid, logout } from "../../lib/api";
+import { useAuth } from "../../hooks/useAuth";
 
 // Structura pentru mese (Mock initial)
 const INITIAL_TABLES = [
@@ -18,21 +17,7 @@ const INITIAL_TABLES = [
 export default function WaiterPage() {
   const [tables, setTables] = useState(INITIAL_TABLES);
   const [notifications, setNotifications] = useState<any[]>([]);
-  const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null);
-
-  // Route Guard: verifică rol + validitate token fără flash
-  useEffect(() => {
-    const token = localStorage.getItem("token");
-    const role = localStorage.getItem("user_role");
-
-    if (!isTokenValid(token)) {
-      logout();
-    } else if (role !== "Waiter") {
-      setIsAuthorized(false);
-    } else {
-      setIsAuthorized(true);
-    }
-  }, []);
+  const { isAuthorized, userRole, isChecking } = useAuth("Waiter");
 
   useEffect(() => {
     if (!isAuthorized) return;
@@ -43,9 +28,9 @@ export default function WaiterPage() {
 
     socket.onmessage = (event) => {
       const data = JSON.parse(event.data);
-      
+
       // 1. Gestionăm Notificările (Issue 3.4)
-      setNotifications(prev => [{...data, id: Date.now()}, ...prev]);
+      setNotifications(prev => [{ ...data, id: Date.now() }, ...prev]);
 
       // 2. Actualizăm Harta Meselor (Issue 3.3)
       if (data.event === "TABLE_OCCUPIED") {
@@ -59,22 +44,28 @@ export default function WaiterPage() {
   }, [isAuthorized]);
 
   const updateTableStatus = (tableNumber: number, status: string) => {
-    setTables(prev => prev.map(t => 
+    setTables(prev => prev.map(t =>
       t.id === tableNumber ? { ...t, status } : t
     ));
   };
 
-  if (isAuthorized === null) {
-    return <div className="min-h-screen bg-slate-50 flex items-center justify-center text-slate-500">Se verifică permisiunile...</div>;
+  if (isChecking) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center text-slate-800">
+        <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-4"></div>
+        <p className="text-slate-500 font-medium">Se verifică permisiunile...</p>
+      </div>
+    );
   }
 
-  if (isAuthorized === false) {
+
+  if (!isAuthorized) {
     return (
       <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center text-slate-800 p-8">
         <h1 className="text-4xl font-bold text-red-500 mb-4">Acces Interzis</h1>
-        <p className="text-slate-500 mb-6 font-medium">Nu aveți permisiunea de a vizualiza panoul de Waiter. Sunteți autentificat ca {localStorage.getItem("user_role")}.</p>
-        <button onClick={() => window.history.back()} className="bg-white border border-slate-300 text-slate-700 px-6 py-2 rounded-lg hover:bg-slate-100 transition-colors shadow-sm font-semibold">
-          Înapoi la pagina anterioară
+        <p className="text-slate-500 mb-6 font-medium">Nu aveți permisiunea de a vizualiza panoul de Waiter. Sunteți autentificat ca {userRole}.</p>
+        <button onClick={() => window.location.href = '/'} className="bg-white border border-slate-300 text-slate-700 px-6 py-2 rounded-lg hover:bg-slate-100 transition-colors shadow-sm font-semibold">
+          Întoarce-te la pagina principală
         </button>
       </div>
     );
@@ -85,13 +76,13 @@ export default function WaiterPage() {
       <header className="flex justify-between items-center mb-10">
         <h1 className="text-3xl font-black text-blue-900 tracking-tight italic">WAITER DASHBOARD</h1>
         <div className="flex items-center gap-4">
-            <UserProfileMenu />
-            <span className="flex items-center gap-1 text-xs font-bold bg-green-100 text-green-700 px-3 py-1 rounded-full border border-green-200">● SERVER ONLINE</span>
+          <UserProfileMenu />
+          <span className="flex items-center gap-1 text-xs font-bold bg-green-100 text-green-700 px-3 py-1 rounded-full border border-green-200">● SERVER ONLINE</span>
         </div>
       </header>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        
+
         {/* HARTA MESELOR (Issue 3.3) */}
         <section className="lg:col-span-2">
           <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
@@ -99,18 +90,17 @@ export default function WaiterPage() {
           </h2>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-6">
             {tables.map((table) => (
-              <div 
+              <div
                 key={table.id}
-                className={`h-32 rounded-2xl border-2 flex flex-col items-center justify-center transition-all shadow-sm ${
-                  table.status === 'occupied' ? 'bg-orange-100 border-orange-400 text-orange-700' :
+                className={`h-32 rounded-2xl border-2 flex flex-col items-center justify-center transition-all shadow-sm ${table.status === 'occupied' ? 'bg-orange-100 border-orange-400 text-orange-700' :
                   table.status === 'ready' ? 'bg-green-100 border-green-500 text-green-700 animate-pulse' :
-                  'bg-white border-slate-200 text-slate-400'
-                }`}
+                    'bg-white border-slate-200 text-slate-400'
+                  }`}
               >
                 <span className="text-xs font-bold uppercase">Masa</span>
                 <span className="text-4xl font-black">{table.id}</span>
                 <span className="text-[10px] mt-2 font-bold uppercase">
-                    {table.status === 'free' ? 'Liberă' : table.status === 'ready' ? 'Mâncare Gata!' : 'Ocupată'}
+                  {table.status === 'free' ? 'Liberă' : table.status === 'ready' ? 'Mâncare Gata!' : 'Ocupată'}
                 </span>
               </div>
             ))}
@@ -124,14 +114,13 @@ export default function WaiterPage() {
           </h2>
           <div className="space-y-4 overflow-y-auto flex-1 pr-2 custom-scrollbar">
             {notifications.map((n) => (
-              <div key={n.id} className={`p-4 rounded-xl border-l-4 shadow-sm animate-in slide-in-from-right ${
-                n.event === "URGENT_CALL" ? "bg-red-50 border-red-500" : "bg-blue-50 border-blue-500"
-              }`}>
+              <div key={n.id} className={`p-4 rounded-xl border-l-4 shadow-sm animate-in slide-in-from-right ${n.event === "URGENT_CALL" ? "bg-red-50 border-red-500" : "bg-blue-50 border-blue-500"
+                }`}>
                 <div className="flex justify-between items-start">
-                    <p className="font-black text-sm uppercase tracking-wider">
-                        {n.event === "URGENT_CALL" ? "⚠️ ASISTENȚĂ" : "🍳 BUCĂTĂRIE"}
-                    </p>
-                    <span className="text-[10px] text-slate-400 font-mono">ACUM</span>
+                  <p className="font-black text-sm uppercase tracking-wider">
+                    {n.event === "URGENT_CALL" ? "⚠️ ASISTENȚĂ" : "🍳 BUCĂTĂRIE"}
+                  </p>
+                  <span className="text-[10px] text-slate-400 font-mono">ACUM</span>
                 </div>
                 <p className="text-sm mt-1 text-slate-700 font-medium">{n.message}</p>
                 <p className="text-xs mt-2 font-bold text-slate-500">MASA #{n.table}</p>

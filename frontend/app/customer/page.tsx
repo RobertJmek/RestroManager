@@ -24,7 +24,7 @@ function CustomerContent() {
   const [socket, setSocket] = useState<WebSocket | null>(null);
   const [tableId, setTableId] = useState<number | null>(null);
   const [guestToken, setGuestToken] = useState<string | null>(null);
-  
+
   const searchParams = useSearchParams();
   const urlTableId = searchParams.get('table_id');
 
@@ -36,7 +36,7 @@ function CustomerContent() {
   useEffect(() => {
     async function authGuest() {
       if (!urlTableId) return;
-      
+
       const tId = parseInt(urlTableId);
       setTableId(tId);
 
@@ -56,7 +56,7 @@ function CustomerContent() {
         console.error("Guest auth failed", err);
       }
     }
-    
+
     authGuest();
   }, [urlTableId]);
 
@@ -90,7 +90,7 @@ function CustomerContent() {
       quantity: 1,
       notes: instructions
     };
-    
+
     setCart([...cart, newItem]);
     setInstructions("");
     setSelectedItem(null);
@@ -122,7 +122,7 @@ function CustomerContent() {
 
       const response = await fetch("http://localhost:8000/api/orders", {
         method: "POST",
-        headers: { 
+        headers: {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${token}`
         },
@@ -132,10 +132,10 @@ function CustomerContent() {
       if (response.ok) {
         const result = await response.json();
         alert(`🔒 Redirecționare către Stripe pentru suma de ${cartTotal.toFixed(2)} RON...\n\n(AI Priority atribuit comenzii: ${result.ai_safety})`);
-        
+
         setCart([]);
         setIsCartOpen(false);
-        window.location.href = "/customer/success";
+        window.location.replace("/customer/success");
       } else {
         const errData = await response.json();
         alert(`❌ Eroare: ${errData.detail || "Nu s-a putut plasa comanda."}`);
@@ -148,7 +148,7 @@ function CustomerContent() {
 
   return (
     <div className="min-h-screen bg-slate-950 p-4 sm:p-8 font-sans text-slate-100">
-      
+
       {/* Premium Header */}
       <div className="max-w-5xl mx-auto rounded-3xl bg-gradient-to-r from-violet-600 via-indigo-600 to-blue-600 p-8 sm:p-12 mb-12 shadow-2xl border border-white/10 relative">
         {/* Profile Overlay */}
@@ -181,7 +181,7 @@ function CustomerContent() {
                 </CardDescription>
                 <div className="flex items-center justify-between mt-auto pt-4 border-t border-slate-800">
                   <span className="text-2xl font-black text-violet-400">{item.price.toFixed(2)} <span className="text-sm font-medium text-slate-500">RON</span></span>
-                  
+
                   <Dialog>
                     <DialogTrigger render={<Button variant="secondary" className="bg-violet-600 hover:bg-violet-500 text-white rounded-full px-8 py-6 text-md font-semibold transition-all hover:-translate-y-1" />}>
                       Comandă
@@ -191,7 +191,7 @@ function CustomerContent() {
                         <DialogTitle className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-violet-400 to-indigo-400">{item.name}</DialogTitle>
                       </DialogHeader>
                       <div className="grid gap-4 py-6">
-                        <textarea 
+                        <textarea
                           placeholder="Note speciale (alergii, preferințe)..."
                           className="w-full bg-slate-950 text-white rounded-xl p-5 min-h-[120px] border border-slate-700 focus:border-violet-500 outline-none"
                           value={instructions}
@@ -214,7 +214,7 @@ function CustomerContent() {
 
       {/* BUTON PLUTITOR: Cheamă Chelnerul (Issue 2.4) */}
       <div className="fixed bottom-6 right-6 z-50 flex flex-col gap-4">
-        
+
         {/* BUTON COȘ CUMPĂRĂTURI */}
         <Dialog open={isCartOpen} onOpenChange={setIsCartOpen}>
           <DialogTrigger render={<Button className="bg-indigo-600 hover:bg-indigo-500 text-white rounded-full w-16 h-16 shadow-2xl flex flex-col items-center justify-center p-0 transition-transform hover:scale-110 active:scale-90 border-2 border-indigo-400 relative" />}>
@@ -257,8 +257,8 @@ function CustomerContent() {
               )}
             </div>
             <DialogFooter>
-              <Button 
-                className="w-full bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 py-6 text-lg font-bold rounded-xl flex items-center gap-2" 
+              <Button
+                className="w-full bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 py-6 text-lg font-bold rounded-xl flex items-center gap-2"
                 onClick={handleCheckout}
                 disabled={cart.length === 0}
               >
@@ -269,7 +269,7 @@ function CustomerContent() {
         </Dialog>
 
         {/* BUTON CHELNER */}
-        <Button 
+        <Button
           onClick={handleCallWaiter}
           className="bg-red-600 hover:bg-red-500 text-white rounded-full w-16 h-16 shadow-2xl flex flex-col items-center justify-center p-0 transition-transform hover:scale-110 active:scale-90 border-2 border-red-400"
         >
