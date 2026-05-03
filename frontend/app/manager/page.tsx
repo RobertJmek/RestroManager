@@ -1,29 +1,28 @@
-"use client"
-import React, { useEffect, useState } from 'react';
+"use client";
+
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import UserProfileMenu from "@/components/ui/UserProfileMenu";
+import RoleGuard from "@/components/RoleGuard";
+
+const DAILY_TOTAL = 1250.5;
+const ORDER_COUNT = 24;
 
 export default function ManagerPage() {
-  const [dailyTotal, setDailyTotal] = useState(0);
-  const [orderCount, setOrderCount] = useState(0);
-
-  // Simulăm preluarea raportului zilnic din Backend
-  useEffect(() => {
-    // În Etapa 4, aici vei face: fetch("http://localhost:8000/api/reports/daily")
-    setDailyTotal(1250.50); // Valoare mock pentru prezentare
-    setOrderCount(24);
-  }, []);
-
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 p-8">
-      <header className="flex justify-between items-center mb-10">
+    <RoleGuard role="Manager" theme="dark" spinnerColor="border-green-500">
+      <div className="min-h-screen bg-slate-950 text-slate-100 p-8">
+        <header className="flex justify-between items-center mb-10">
         <div>
           <h1 className="text-4xl font-black text-green-500 tracking-tight">MANAGER DASHBOARD</h1>
           <p className="text-slate-400">Monitorizare vânzări și administrare sistem</p>
         </div>
-        <Button className="bg-green-600 hover:bg-green-500 font-bold">
-          + Adaugă Produs Nou
-        </Button>
+        <div className="flex items-center gap-6">
+          <UserProfileMenu />
+          <Button className="bg-green-600 hover:bg-green-500 font-bold">
+            + Adaugă Produs Nou
+          </Button>
+        </div>
       </header>
 
       {/* Secțiunea de Rapoarte (Issue 3.5) */}
@@ -33,7 +32,7 @@ export default function ManagerPage() {
             <CardTitle className="text-slate-400 text-sm uppercase">Încasări Zilnice</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-3xl font-bold text-green-400">{dailyTotal} RON</p>
+            <p className="text-3xl font-bold text-green-400">{DAILY_TOTAL} RON</p>
           </CardContent>
         </Card>
 
@@ -42,7 +41,7 @@ export default function ManagerPage() {
             <CardTitle className="text-slate-400 text-sm uppercase">Comenzi Totale</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-3xl font-bold text-blue-400">{orderCount}</p>
+            <p className="text-3xl font-bold text-blue-400">{ORDER_COUNT}</p>
           </CardContent>
         </Card>
 
@@ -68,6 +67,7 @@ export default function ManagerPage() {
           <button className="text-sm text-slate-300 hover:text-white underline">Editează Categorii</button>
         </div>
       </div>
-    </div>
+      </div>
+    </RoleGuard>
   );
 }

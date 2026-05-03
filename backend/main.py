@@ -1,11 +1,9 @@
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Depends
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from typing import List, Dict
-from sqlmodel import Session, text
-from db.session import get_session
 
-# Importăm managerul tău de WebSocket
-from core.websocket_manager import manager
+# Importăm ruterele asamblate
+from api import api_router
+from api.websockets import router as websocket_router
 
 app = FastAPI(
     title="RestroManager API",
@@ -22,31 +20,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# --- LOGICĂ AI  ---
+# --- 1. Rutele API Standard (Prefixate cu /api) ---
+app.include_router(api_router, prefix="/api")
 
-def run_ai_kds_optimizer(items: List[dict]) -> str:
-    """
-    AGENT AI 1: Kitchen Optimizer. 
-    Analizează complexitatea produselor pentru a sugera prioritizarea.
-    """
-    # Exemplu: Dacă avem Pizza și Burger, timpul de gătire e mare
-    total_prep_expected = sum([item.get("prep_time", 10) for item in items])
-    if total_prep_expected > 25:
-        return "HIGH_COMPLEXITY - Start Prep Immediately"
-    return "STANDARD_PRIORITY"
+# --- 2. Rutele WebSocket (Fără prefix, ex: /ws/chef) ---
+app.include_router(websocket_router)
 
-def run_ai_safety_agent(notes: str) -> str:
-    """
-    AGENT AI 2: Safety & Urgency Agent.
-    Detectează riscuri de sănătate sau solicitări urgente.
-    """
-    keywords = ["alergie", "allergy", "urgent", "copil", "baby"]
-    if any(word in notes.lower() for word in keywords):
-        return "CRITICAL"
-    return "NORMAL"
-
-# --- 1. Rute de bază ---
-
+# --- 3. Endpoints de Utilitate (Root & Health) ---
 @app.get("/")
 async def root():
     return {"message": "Welcome to the RestroManager API!"}
@@ -54,64 +34,3 @@ async def root():
 @app.get("/health")
 async def health_check():
     return {"status": "ok"}
-
-# --- 2. Rute pentru Comenzi (Legătura cu Dev 1 & Dev 3) ---
-
-@app.post("/api/orders")
-async def create_order(order: dict):
-    """
-    Apelat de Dev 1 (Client). 
-    Aici integrăm cei 2 agenți AI înainte de a trimite la KDS.
-    """
-    # 1. Rulăm agenții AI
-    safety_priority = run_ai_safety_agent(order.get("notes", ""))
-    cooking_advice = run_ai_kds_optimizer(order.get("items", []))
-    
-    payload = {
-        "event": "NEW_ORDER",
-        "ai_metadata": {
-            "urgency": safety_priority,
-            "cooking_strategy": cooking_advice
-        },
-        "data": order
-    }
-    
-    # 2. Notificăm Bucătăria (KDS) în timp real
-    await manager.broadcast_to_role("chef", payload)
-    
-    # 3. Notificăm și Chelnerul că s-a ocupat o masă 
-    await manager.broadcast_to_role("waiter", {
-        "event": "TABLE_OCCUPIED",
-        "table": order.get("table_number")
-    })
-
-    return {"status": "Processed by AI and sent to KDS", "ai_safety": safety_priority}
-
-# --- 3. WebSockets  ---
-
-@app.websocket("/ws/{role}")
-async def websocket_endpoint(websocket: WebSocket, role: str):
-    await manager.connect(websocket, role)
-    try:
-        while True:
-            data = await websocket.receive_json()
-            
-            # ACȚIUNE: Bucătarul marchează comanda ca gata 
-            if data.get("action") == "ORDER_READY":
-                await manager.broadcast_to_role("waiter", {
-                    "event": "FOOD_READY",
-                    "table": data.get("table"),
-                    "message": f"Mâncarea pentru masa {data.get('table')} este gata de servit!",
-                    "type": "success"
-                })
-                
-            # ACȚIUNE: Clientul cheamă chelnerul 
-            if data.get("action") == "CALL_WAITER":
-                await manager.broadcast_to_role("waiter", {
-                    "event": "URGENT_CALL",
-                    "table": data.get("table"),
-                    "message": "⚠️ Solicitare asistență la masă!"
-                })
-
-    except WebSocketDisconnect:
-        manager.disconnect(websocket, role)

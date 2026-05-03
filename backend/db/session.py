@@ -13,7 +13,10 @@ DB_NAME = os.getenv("dbname")
 
 DATABASE_URL = f"postgresql+psycopg2://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}?sslmode=require"
 
-engine = create_engine(DATABASE_URL, echo=True)
+# DB_ECHO controls SQL query logging. Set to "true" only for local debugging. (M4 fix)
+DB_ECHO = os.getenv("DB_ECHO", "false").lower() == "true"
+
+engine = create_engine(DATABASE_URL, echo=DB_ECHO)
 
 def get_session():
     with Session(engine) as session:

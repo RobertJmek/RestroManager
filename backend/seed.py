@@ -1,85 +1,85 @@
-
-
-##### NU MAI TREBUIE DAT SEED PE BAZA NOASTRA DE DATE PENTRU CA AM DAT EU DEJA, SI E IN CLOUD !!!!
-
-
 import sys
 import os
 
 # Adaugam root-ul in PYTHONPATH pentru a putea importa modulele `backend...`
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from sqlmodel import Session, SQLModel
-from backend.db.session import engine
-from backend.models.user import User, UserRole
-from backend.models.category import Category
-from backend.models.table import Table, TableStatus
-from backend.models.menu_item import MenuItem
+from sqlmodel import Session, SQLModel, select
+from db.session import engine
+from models.user import User, UserRole
+from models.category import Category
+from models.table import Table
+from models.menu_item import MenuItem
+from core.security import get_password_hash
 
 def init_db():
     print("Se creează tabelele în baza de date (dacă nu există deja)...")
     SQLModel.metadata.create_all(engine)
 
+def create_user_if_not_exists(session: Session, name: str, email: str, phone: str, role: UserRole, password: str):
+    existing_user = session.exec(select(User).where(User.email == email)).first()
+    if existing_user:
+        print(f"ℹ️ Utilizatorul {email} există deja. Salt peste...")
+        return existing_user
+    
+    print(f"👤 Se adaugă utilizatorul: {name} ({role})...")
+    user = User(
+        name=name,
+        email=email,
+        phone=phone,
+        role=role,
+        hashed_password=get_password_hash(password),
+        is_active=True
+    )
+    session.add(user)
+    return user
+
 def seed_data():
     with Session(engine) as session:
-        # Verificăm dacă avem deja date pentru a evita un crash de tip `unique constraint`
-        existing_manager = session.query(User).filter(User.email == "manager@restro.com").first()
-        if existing_manager:
-            print("❌ Datele există deja în baza de date! Scriptul a fost oprit pentru a nu duplica intrările.")
-            return
-
-        print("👨‍💼 Se adaugă contul de Manager...")
-        manager = User(
-            name="Ion Popescu (Manager)",
-            email="manager@restro.com",
-            phone="+40700111222",
-            role=UserRole.manager,
-            hashed_password="placeholder_hash_parola", # În producție vom folosi Passlib/Bcrypt
-            is_active=True
-        )
-        session.add(manager)
-
-        print("📁 Se adaugă Categoriile principare...")
-        # Trebuie să obținem id-urile categoriilor, deci dăm flush/commit imediat
-        c1 = Category(name="Băuturi", description="Răcoritoare, Cocktailuri și Bere")
-        c2 = Category(name="Burgeri", description="Burgeri artizanali din carne de vită Black Angus")
-        c3 = Category(name="Pizza", description="Pizza pe vatră, specific napoletan")
-        session.add_all([c1, c2, c3])
+        # 1. Utilizatori
+        create_user_if_not_exists(session, "Admin Manager", "manager@restro.com", "+40700111222", UserRole.manager, "Manager@RestroApp2024!")
+        create_user_if_not_exists(session, "Andrei Waiter", "waiter@restro.com", "+40700333444", UserRole.waiter, "Waiter@RestroApp2024!")
+        create_user_if_not_exists(session, "Chef Roberto", "chef@restro.com", "+40700555666", UserRole.chef, "Chef@RestroApp2024!")
+        
         session.commit()
 
-        print("🍔 Se creează Meniul (10 produse)...")
-        items = [
-            # Bauturi
-            MenuItem(name="Limonadă cu mentă", description="Proaspătă, cu lămâi stoarse", category_id=c1.id, price=17.0, prep_time_minutes=3),
-            MenuItem(name="Coca Cola", description="Doză 330ml", category_id=c1.id, price=10.0, prep_time_minutes=1),
-            MenuItem(name="Ursus Premium", description="Bere blondă 500ml draught", category_id=c1.id, price=12.0, prep_time_minutes=2),
+        # 2. Categorii (doar daca nu exista)
+        if not session.exec(select(Category)).first():
+            print("📁 Se adaugă Categoriile principale...")
+            c1 = Category(name="Băuturi", description="Răcoritoare, Cocktailuri și Bere")
+            c2 = Category(name="Burgeri", description="Burgeri artizanali din carne de vită Black Angus")
+            c3 = Category(name="Pizza", description="Pizza pe vatră, specific napoletan")
+            session.add_all([c1, c2, c3])
+            session.commit()
             
-            # Burgeri
-            MenuItem(name="Classic Cheeseburger", description="Chiflă brioche, carne vită, dublu cheddar, castraveți, sos", category_id=c2.id, price=45.0, prep_time_minutes=15),
-            MenuItem(name="Spicy Bacon Burger", description="Carne vită, bacon crispy, sos jalapeno, ceapă prăjită", category_id=c2.id, price=52.0, prep_time_minutes=15),
-            MenuItem(name="Truffle Mushroom Burger", description="Carne vită, maioneză cu trufe, ciuperci", category_id=c2.id, price=55.0, prep_time_minutes=18),
-            
-            # Pizza
-            MenuItem(name="Pizza Margherita", description="Sos de roșii San Marzano, mozzarella fior di latte", category_id=c3.id, price=32.0, prep_time_minutes=10, dietary_tags="Vegetarian"),
-            MenuItem(name="Pizza Diavola", description="Sos de roșii, mozzarella, salam picant", category_id=c3.id, price=40.0, prep_time_minutes=12, dietary_tags="Picant"),
-            MenuItem(name="Pizza Quattro Formaggi", description="Mozzarella, gorgonzola, ementaler, parmezan", category_id=c3.id, price=42.0, prep_time_minutes=12, dietary_tags="Vegetarian"),
-            MenuItem(name="Pizza Prosciutto e Funghi", description="Sos de roșii, mozzarella, șuncă, ciuperci", category_id=c3.id, price=38.0, prep_time_minutes=12),
-        ]
-        session.add_all(items)
+            # 3. Meniu (doar daca am adaugat categorii noi)
+            print("🍔 Se creează Meniul...")
+            items = [
+                MenuItem(name="Limonadă cu mentă", description="Proaspătă, cu lămâi stoarse", category_id=c1.id, price=17.0, prep_time_minutes=3),
+                MenuItem(name="Classic Cheeseburger", description="Chiflă brioche, carne vită, dublu cheddar", category_id=c2.id, price=45.0, prep_time_minutes=15),
+                MenuItem(name="Pizza Margherita", description="Sos roșii, mozzarella fior di latte", category_id=c3.id, price=32.0, prep_time_minutes=10),
+            ]
+            session.add_all(items)
+        else:
+            print("ℹ️ Categoriile există deja. Salt peste meniu...")
 
-        print("🪑 Se orchestrează Mesele...")
-        tables = [
-            Table(number=1, capacity=4, location="Lângă Geam"),
-            Table(number=2, capacity=2, location="Terasă"),
-            Table(number=3, capacity=4, location="Terasă"),
-            Table(number=4, capacity=6, location="Centru"),
-            Table(number=5, capacity=2, location="Separeu"),
-        ]
-        session.add_all(tables)
+        # 4. Mese (doar daca nu exista)
+        if not session.exec(select(Table)).first():
+            print("🪑 Se adaugă Mesele...")
+            tables = [
+                Table(number=1, capacity=4, location="Lângă Geam"),
+                Table(number=2, capacity=2, location="Terasă"),
+                Table(number=3, capacity=4, location="Terasă"),
+                Table(number=4, capacity=4, location="Salon Principal"),
+                Table(number=5, capacity=6, location="Salon Principal"),
+                Table(number=6, capacity=2, location="Lângă Bar"),
+            ]
+            session.add_all(tables)
+        else:
+            print("ℹ️ Mesele există deja. Salt peste...")
 
-        # Commit final pentru toate insertiile rămase
         session.commit()
-        print("✅ Success! Baza de date a fost populată cu datele de start.")
+        print("✅ Succes! Datele au fost actualizate.")
 
 if __name__ == "__main__":
     init_db()

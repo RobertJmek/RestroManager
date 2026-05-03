@@ -14,28 +14,66 @@ const MOCK_MENU = [
   { id: 4, name: "Lava Cake Artizanal", description: "Ciocolată belgiană fierbinte asortată cu înghețată de vanilie de Madagascar", price: 30, category: "Desserts", img: "🌋" }
 ];
 
-export default function CustomerPage() {
+import { useSearchParams } from 'next/navigation';
+import { Suspense } from 'react';
+import UserProfileMenu from "../../components/ui/UserProfileMenu";
+
+function CustomerContent() {
   const [selectedItem, setSelectedItem] = useState<any>(null);
   const [instructions, setInstructions] = useState("");
   const [socket, setSocket] = useState<WebSocket | null>(null);
-  
+  const [tableId, setTableId] = useState<number | null>(null);
+  const [guestToken, setGuestToken] = useState<string | null>(null);
+
+  const searchParams = useSearchParams();
+  const urlTableId = searchParams.get('table_id');
+
   // Starea pentru coșul de cumpărături
   const [cart, setCart] = useState<any[]>([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
 
-  // Inițializăm conexiunea WS pentru client (Issue 3.1)
+  // Autentificare Guest bazată pe URL
   useEffect(() => {
-    const ws = new WebSocket("ws://localhost:8000/ws/customer");
+    async function authGuest() {
+      if (!urlTableId) return;
+
+      const tId = parseInt(urlTableId);
+      setTableId(tId);
+
+      try {
+        const response = await fetch(`http://localhost:8000/api/auth/guest-login/${tId}`, {
+          method: "POST"
+        });
+        const data = await response.json();
+        if (response.ok) {
+          // Store guest session under separate keys so we don't clobber an existing staff session
+          localStorage.setItem("guest_token", data.access_token);
+          localStorage.setItem("guest_table_id", tId.toString());
+          setGuestToken(data.access_token);
+          console.log("Authenticated as Guest for table", tId);
+        }
+      } catch (err) {
+        console.error("Guest auth failed", err);
+      }
+    }
+
+    authGuest();
+  }, [urlTableId]);
+
+  // Inițializăm conexiunea WS pentru client după autentificare
+  useEffect(() => {
+    if (!guestToken) return;
+    const ws = new WebSocket(`ws://localhost:8000/ws/guest?token=${encodeURIComponent(guestToken)}`);
     setSocket(ws);
     return () => ws.close();
-  }, []);
+  }, [guestToken]);
 
-  // Funcție pentru Chemare Chelner (Issue 2.4)
+  // Funcție pentru Chemare Chelner
   const handleCallWaiter = () => {
     if (socket && socket.readyState === WebSocket.OPEN) {
       socket.send(JSON.stringify({
         action: "CALL_WAITER",
-        table: 2 // Masa simulată
+        table: tableId || 0
       }));
       alert("🔔 Chelnerul a fost solicitat la masa ta!");
     } else {
@@ -52,7 +90,7 @@ export default function CustomerPage() {
       quantity: 1,
       notes: instructions
     };
-    
+
     setCart([...cart, newItem]);
     setInstructions("");
     setSelectedItem(null);
@@ -67,11 +105,16 @@ export default function CustomerPage() {
 
   const handleCheckout = async () => {
     if (cart.length === 0) return;
+    if (!guestToken) {
+      alert("❌ Sesiunea de oaspete nu este inițializată. Te rugăm să reîncărci pagina.");
+      return;
+    }
 
     try {
+      const token = guestToken;
       const orderPayload = {
         id: Math.floor(Math.random() * 1000),
-        table_number: 2,
+        table_number: tableId,
         items: cart.map(item => ({ name: item.name, quantity: item.quantity, prep_time: 15 })),
         notes: cart.map(item => item.notes).filter(n => n).join(" | "),
         total: cartTotal
@@ -79,23 +122,23 @@ export default function CustomerPage() {
 
       const response = await fetch("http://localhost:8000/api/orders", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
         body: JSON.stringify(orderPayload),
       });
 
       if (response.ok) {
         const result = await response.json();
-        // Redirect simulat către Stripe Checkout / Success Screen
         alert(`🔒 Redirecționare către Stripe pentru suma de ${cartTotal.toFixed(2)} RON...\n\n(AI Priority atribuit comenzii: ${result.ai_safety})`);
-        
-        // Golește coșul după comandă
+
         setCart([]);
         setIsCartOpen(false);
-
-        // Redirect real pe noul ecran de succes!
-        window.location.href = "/customer/success";
+        window.location.replace("/customer/success");
       } else {
-        alert("❌ Eroare la procesarea comenzii.");
+        const errData = await response.json();
+        alert(`❌ Eroare: ${errData.detail || "Nu s-a putut plasa comanda."}`);
       }
     } catch (error) {
       console.error("Eroare conexiune:", error);
@@ -105,9 +148,14 @@ export default function CustomerPage() {
 
   return (
     <div className="min-h-screen bg-slate-950 p-4 sm:p-8 font-sans text-slate-100">
-      
+
       {/* Premium Header */}
-      <div className="max-w-5xl mx-auto rounded-3xl bg-gradient-to-r from-violet-600 via-indigo-600 to-blue-600 p-8 sm:p-12 mb-12 shadow-2xl border border-white/10 relative overflow-hidden">
+      <div className="max-w-5xl mx-auto rounded-3xl bg-gradient-to-r from-violet-600 via-indigo-600 to-blue-600 p-8 sm:p-12 mb-12 shadow-2xl border border-white/10 relative">
+        {/* Profile Overlay */}
+        <div className="absolute top-6 right-6 z-20">
+          <UserProfileMenu />
+        </div>
+
         <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold text-white tracking-tight mb-4 relative z-10">
           Restro<span className="text-violet-200">Manager</span>
         </h1>
@@ -133,7 +181,7 @@ export default function CustomerPage() {
                 </CardDescription>
                 <div className="flex items-center justify-between mt-auto pt-4 border-t border-slate-800">
                   <span className="text-2xl font-black text-violet-400">{item.price.toFixed(2)} <span className="text-sm font-medium text-slate-500">RON</span></span>
-                  
+
                   <Dialog>
                     <DialogTrigger render={<Button variant="secondary" className="bg-violet-600 hover:bg-violet-500 text-white rounded-full px-8 py-6 text-md font-semibold transition-all hover:-translate-y-1" />}>
                       Comandă
@@ -143,7 +191,7 @@ export default function CustomerPage() {
                         <DialogTitle className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-violet-400 to-indigo-400">{item.name}</DialogTitle>
                       </DialogHeader>
                       <div className="grid gap-4 py-6">
-                        <textarea 
+                        <textarea
                           placeholder="Note speciale (alergii, preferințe)..."
                           className="w-full bg-slate-950 text-white rounded-xl p-5 min-h-[120px] border border-slate-700 focus:border-violet-500 outline-none"
                           value={instructions}
@@ -166,7 +214,7 @@ export default function CustomerPage() {
 
       {/* BUTON PLUTITOR: Cheamă Chelnerul (Issue 2.4) */}
       <div className="fixed bottom-6 right-6 z-50 flex flex-col gap-4">
-        
+
         {/* BUTON COȘ CUMPĂRĂTURI */}
         <Dialog open={isCartOpen} onOpenChange={setIsCartOpen}>
           <DialogTrigger render={<Button className="bg-indigo-600 hover:bg-indigo-500 text-white rounded-full w-16 h-16 shadow-2xl flex flex-col items-center justify-center p-0 transition-transform hover:scale-110 active:scale-90 border-2 border-indigo-400 relative" />}>
@@ -209,8 +257,8 @@ export default function CustomerPage() {
               )}
             </div>
             <DialogFooter>
-              <Button 
-                className="w-full bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 py-6 text-lg font-bold rounded-xl flex items-center gap-2" 
+              <Button
+                className="w-full bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 py-6 text-lg font-bold rounded-xl flex items-center gap-2"
                 onClick={handleCheckout}
                 disabled={cart.length === 0}
               >
@@ -221,7 +269,7 @@ export default function CustomerPage() {
         </Dialog>
 
         {/* BUTON CHELNER */}
-        <Button 
+        <Button
           onClick={handleCallWaiter}
           className="bg-red-600 hover:bg-red-500 text-white rounded-full w-16 h-16 shadow-2xl flex flex-col items-center justify-center p-0 transition-transform hover:scale-110 active:scale-90 border-2 border-red-400"
         >
@@ -230,5 +278,13 @@ export default function CustomerPage() {
         </Button>
       </div>
     </div>
+  );
+}
+
+export default function CustomerPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-slate-950 flex items-center justify-center text-white">Se încarcă meniul...</div>}>
+      <CustomerContent />
+    </Suspense>
   );
 }

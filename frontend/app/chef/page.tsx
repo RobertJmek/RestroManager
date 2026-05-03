@@ -1,5 +1,7 @@
 "use client"
 import { useEffect, useState } from "react"
+import UserProfileMenu from "../../components/ui/UserProfileMenu"
+import { useAuth } from "../../hooks/useAuth";
 
 // Ajustăm tipul datelor pentru a include metadatele AI trimise de Backend
 type Order = {
@@ -16,9 +18,13 @@ type Order = {
 export default function ChefPage() {
   const [orders, setOrders] = useState<Order[]>([])
   const [socket, setSocket] = useState<WebSocket | null>(null)
+  const { isAuthorized, userRole, isChecking } = useAuth("Chef");
 
   useEffect(() => {
-    const ws = new WebSocket("ws://localhost:8000/ws/chef")
+    if (!isAuthorized) return;
+
+    const token = localStorage.getItem("token");
+    const ws = new WebSocket(`ws://localhost:8000/ws/chef?token=${encodeURIComponent(token ?? "")}`)
     setSocket(ws)
 
     ws.onmessage = (event) => {
@@ -35,7 +41,7 @@ export default function ChefPage() {
     }
 
     return () => ws.close()
-  }, [])
+  }, [isAuthorized])
 
   // Funcție pentru a anunța chelnerul (Issue 3.4)
   const markAsReady = (orderId: number, tableNumber: number) => {
@@ -50,12 +56,36 @@ export default function ChefPage() {
     }
   }
 
+  if (isChecking) {
+    return (
+      <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center text-white">
+        <div className="w-8 h-8 border-4 border-orange-500 border-t-transparent rounded-full animate-spin mb-4"></div>
+        <p className="text-slate-400 font-medium">Se verifică permisiunile...</p>
+      </div>
+    );
+  }
+
+  if (!isAuthorized) {
+    return (
+      <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center text-white p-8">
+        <h1 className="text-4xl font-bold text-red-500 mb-4">Acces Interzis</h1>
+        <p className="text-slate-400 mb-6">Nu aveți permisiunea de a vizualiza KDS (Kitchen Display System). Sunteți autentificat ca {userRole}.</p>
+        <button onClick={() => window.location.href = '/'} className="bg-slate-800 px-6 py-2 rounded-lg hover:bg-slate-700 transition-colors">
+          Întoarce-te la pagina principală
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-slate-900 p-8 text-white">
       <header className="flex justify-between items-center mb-8">
         <h1 className="text-4xl font-black text-orange-500 tracking-tight">KITCHEN DISPLAY SYSTEM</h1>
-        <div className="bg-slate-800 px-4 py-2 rounded-full text-sm border border-slate-700">
-          Status: <span className="text-green-400">● LIVE</span>
+        <div className="flex items-center gap-6">
+          <UserProfileMenu />
+          <div className="bg-slate-800 px-4 py-2 rounded-full text-sm border border-slate-700">
+            Status: <span className="text-green-400">● LIVE</span>
+          </div>
         </div>
       </header>
 
@@ -63,16 +93,15 @@ export default function ChefPage() {
         {orders.map((order) => (
           <div
             key={order.id}
-            className={`relative overflow-hidden border-2 p-5 rounded-xl transition-all ${
-              order.ai_metadata?.urgency === "CRITICAL" 
-                ? "border-red-500 bg-red-950/20 animate-pulse" 
-                : "border-slate-700 bg-slate-800"
-            }`}
+            className={`relative overflow-hidden border-2 p-5 rounded-xl transition-all ${order.ai_metadata?.urgency === "CRITICAL"
+              ? "border-red-500 bg-red-950/20 animate-pulse"
+              : "border-slate-700 bg-slate-800"
+              }`}
           >
             {/* AI Insight Badge */}
             <div className="mb-4 bg-slate-900/50 p-2 rounded border border-slate-700">
-                <p className="text-[10px] uppercase font-bold text-slate-400">AI Cooking Insight:</p>
-                <p className="text-xs text-blue-300 italic">{order.ai_metadata?.cooking_strategy || "Standard preparation"}</p>
+              <p className="text-[10px] uppercase font-bold text-slate-400">AI Cooking Insight:</p>
+              <p className="text-xs text-blue-300 italic">{order.ai_metadata?.cooking_strategy || "Standard preparation"}</p>
             </div>
 
             <div className="flex justify-between items-start mb-4">
@@ -98,7 +127,7 @@ export default function ChefPage() {
               </div>
             )}
 
-            <button 
+            <button
               onClick={() => markAsReady(order.id, order.table_number)}
               className="w-full bg-green-600 hover:bg-green-500 text-white font-black py-4 rounded-lg transition-colors shadow-lg active:scale-95"
             >
