@@ -41,7 +41,7 @@ function CustomerContent() {
       setTableId(tId);
 
       try {
-        const response = await fetch(`http://localhost:8000/api/auth/guest-login/${tId}`, {
+        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api"}/auth/guest-login/${tId}`, {
           method: "POST"
         });
         const data = await response.json();
@@ -63,7 +63,8 @@ function CustomerContent() {
   // Inițializăm conexiunea WS pentru client după autentificare
   useEffect(() => {
     if (!guestToken) return;
-    const ws = new WebSocket(`ws://localhost:8000/ws/guest?token=${encodeURIComponent(guestToken)}`);
+    const wsUrl = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api").replace("https://", "wss://").replace("http://", "ws://").replace("/api", "");
+    const ws = new WebSocket(`${wsUrl}/ws/guest?token=${encodeURIComponent(guestToken)}`);
     setSocket(ws);
     return () => ws.close();
   }, [guestToken]);
@@ -120,7 +121,7 @@ function CustomerContent() {
         total: cartTotal
       };
 
-      const response = await fetch("http://localhost:8000/api/orders", {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api"}/orders`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

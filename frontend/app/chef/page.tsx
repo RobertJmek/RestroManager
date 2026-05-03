@@ -24,7 +24,9 @@ export default function ChefPage() {
     if (!isAuthorized) return;
 
     const token = localStorage.getItem("token");
-    const ws = new WebSocket(`ws://localhost:8000/ws/chef?token=${encodeURIComponent(token ?? "")}`)
+    const wsUrl = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api").replace("https://", "wss://").replace("http://", "ws://").replace("/api", "");
+    // Conexiune WebSocket pentru Bucătar (KDS)
+    const ws = new WebSocket(`${wsUrl}/ws/chef?token=${encodeURIComponent(token ?? "")}`)
     setSocket(ws)
 
     ws.onmessage = (event) => {
