@@ -17,6 +17,8 @@ node_modules/
 out/
 build/
 npm-debug.log*
+package-lock.json
+yarn.lock
 
 # OS / IDEs
 .DS_Store
@@ -26,3 +28,9 @@ npm-debug.log*
 *.swo
 
 .agent*
+# Local Netlify folder
+.netlify
+netlify.toml
+
+AGENTS.md
+CLAUDE.md
