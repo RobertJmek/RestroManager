@@ -1,0 +1,66 @@
+
+# Git
+.git
+.gitignore
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.venv/
+.venv
+.env
+.env_example
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Node / Next.js
+node_modules/
+.next/
+out/
+build/
+npm-debug.log*
+package-lock.json
+yarn.lock
+
+# Docker
+Dockerfile
+Dockerfile.*
+docker-compose.yml
+.dockerignore
+
+# IDEs / OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Logs & temp
+*.log
+tmp/
+temp/
+
+# Documentation
+*.md
+!README.md
+
+# Misc
+.netlify
+.windsurf/
+.agents/
+
+# Large data files with embedded base64
+backend/seed.py
+
+# Test files
+test_*
+*_test.py
+*.test.ts
+*.test.tsx
+
+# Temporary files
+*.tmp
+.cache/

@@ -4,6 +4,7 @@ from api.auth import router as auth_router
 from api.orders import router as orders_router
 from api.dashboards import router as dashboards_router
 from api.users import router as users_router
+from api.menu import menu_router, category_router
 
 api_router = APIRouter()
 
@@ -12,3 +13,5 @@ api_router.include_router(auth_router)
 api_router.include_router(orders_router)
 api_router.include_router(dashboards_router)
 api_router.include_router(users_router)
+api_router.include_router(menu_router)
+api_router.include_router(category_router)
