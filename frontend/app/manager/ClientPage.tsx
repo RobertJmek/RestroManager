@@ -8,6 +8,7 @@ import UserProfileMenu from "@/components/ui/UserProfileMenu";
 import ClientRoleGuard from "@/components/ClientRoleGuard";
 import { apiRequest } from "@/lib/api";
 import { Pencil, Trash2 } from "lucide-react";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
 
@@ -70,10 +71,15 @@ export default function ManagerPage() {
 
   const [toast, setToast] = useState<{ message: string; type: "success" | "error"; visible: boolean } | null>(null);
 
-  const [activeTab, setActiveTab] = useState<"products" | "categories">("products");
+  const [activeTab, setActiveTab] = useState<"products" | "categories" | "reports">("products");
   const [categoryForm, setCategoryForm] = useState({ name: "", description: "" });
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
+
+  const [reportStart, setReportStart] = useState(new Date().toISOString().slice(0, 10));
+  const [reportEnd, setReportEnd] = useState(new Date().toISOString().slice(0, 10));
+  const [reportData, setReportData] = useState<any>(null);
+  const [reportLoading, setReportLoading] = useState(false);
 
   const showToast = useCallback((message: string, type: "success" | "error" = "success") => {
     setToast({ message, type, visible: true });
@@ -307,6 +313,23 @@ export default function ManagerPage() {
     }
   }
 
+  const fetchReport = useCallback(async (start: string, end: string) => {
+    setReportLoading(true);
+    try {
+      const res = await apiRequest(`/reports/range?start_date=${start}&end_date=${end}`);
+      if (!res.ok) throw new Error("Eroare la încărcarea raportului");
+      setReportData(await res.json());
+    } catch {
+      // ignore — report is optional
+    } finally {
+      setReportLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchReport(reportStart, reportEnd);
+  }, [reportStart, reportEnd, fetchReport]);
+
   return (
     <ClientRoleGuard role="Manager" theme="dark" spinnerColor="border-green-500">
       <div className="min-h-screen bg-slate-950 text-slate-100 p-8">
@@ -338,6 +361,16 @@ export default function ManagerPage() {
               >
                 Categorii
               </button>
+              <button
+                onClick={() => setActiveTab("reports")}
+                className={`px-4 py-1.5 rounded-md text-sm font-semibold transition-colors ${
+                  activeTab === "reports"
+                    ? "bg-green-600 text-white"
+                    : "text-slate-400 hover:text-white"
+                }`}
+              >
+                Rapoarte
+              </button>
             </div>
           </div>
         </header>
@@ -349,8 +382,8 @@ export default function ManagerPage() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
-          <Card className="bg-slate-900 border-slate-800"><CardHeader><CardTitle className="text-slate-400 text-sm uppercase">Încasări Zilnice</CardTitle></CardHeader><CardContent><p className="text-3xl font-bold text-green-400">1,250.50 RON</p></CardContent></Card>
-          <Card className="bg-slate-900 border-slate-800"><CardHeader><CardTitle className="text-slate-400 text-sm uppercase">Comenzi Totale</CardTitle></CardHeader><CardContent><p className="text-3xl font-bold text-blue-400">24</p></CardContent></Card>
+          <Card className="bg-slate-900 border-slate-800"><CardHeader><CardTitle className="text-slate-400 text-sm uppercase">Încasări Zilnice</CardTitle></CardHeader><CardContent><p className="text-3xl font-bold text-green-400">{reportData ? `${reportData.total_revenue.toFixed(2)} RON` : "—"}</p></CardContent></Card>
+          <Card className="bg-slate-900 border-slate-800"><CardHeader><CardTitle className="text-slate-400 text-sm uppercase">Comenzi totale astăzi</CardTitle></CardHeader><CardContent><p className="text-3xl font-bold text-blue-400">{reportData ? reportData.total_orders : "—"}</p></CardContent></Card>
           <Card className="bg-slate-900 border-slate-800"><CardHeader><CardTitle className="text-slate-400 text-sm uppercase">Produse în Meniu</CardTitle></CardHeader><CardContent><p className="text-3xl font-bold text-green-400">{menuItems.length}</p></CardContent></Card>
         </div>
 
@@ -384,12 +417,12 @@ export default function ManagerPage() {
                   </div>
                   {item.description && <p className="text-slate-400 text-sm line-clamp-2">{item.description}</p>}
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-xs bg-slate-800 px-2 py-0.5 rounded-full text-slate-300">{item.category}</span>
+                    <span className="text-xs bg-slate-800 px-2 py-0.5 rounded-full text-slate-200">{item.category}</span>
                     <button onClick={() => handleToggleAvailability(item)} className={`text-xs px-2 py-0.5 rounded-full font-medium transition-colors ${item.is_available ? "bg-green-900/50 text-green-300 hover:bg-green-900" : "bg-red-900/50 text-red-300 hover:bg-red-900"}`}>{item.is_available ? "Disponibil" : "Indisponibil"}</button>
                   </div>
                   <div className="flex gap-2 pt-1">
-                    <Button variant="outline" size="sm" className="flex-1 border-slate-700 text-slate-300 hover:bg-slate-800 hover:text-white" onClick={() => handleEdit(item)}><Pencil size={14} className="mr-1.5" />Editează</Button>
-                    <Button variant="outline" size="sm" className="border-red-900/50 text-red-400 hover:bg-red-950 hover:text-red-300" onClick={() => handleDelete(item.id)}><Trash2 size={14} /></Button>
+                    <Button variant="outline" size="sm" className="flex-1 border-slate-600 text-slate-200 hover:bg-slate-700 hover:text-white" onClick={() => handleEdit(item)}><Pencil size={14} className="mr-1.5" />Editează</Button>
+                    <Button variant="outline" size="sm" className="border-red-800/50 text-red-400 hover:bg-red-950 hover:text-red-300" onClick={() => handleDelete(item.id)}><Trash2 size={14} /></Button>
                   </div>
                 </CardContent>
               </Card>
@@ -416,7 +449,7 @@ export default function ManagerPage() {
               <div className="flex items-center gap-3"><span className="text-sm text-slate-400">Disponibil în meniu:</span><button type="button" onClick={() => setIsFormAvailable(!isFormAvailable)} className={`relative w-11 h-6 rounded-full transition-colors ${isFormAvailable ? "bg-green-600" : "bg-slate-600"}`}><span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full transition-transform ${isFormAvailable ? "translate-x-5" : ""}`} /></button></div>
             </div>
             <DialogFooter>
-              <Button variant="outline" className="border-slate-700 text-slate-300 hover:bg-slate-800" onClick={() => { setIsModalOpen(false); resetForm(); }}>Anulează</Button>
+              <Button variant="outline" className="border-slate-600 text-slate-200 hover:bg-slate-700" onClick={() => { setIsModalOpen(false); resetForm(); }}>Anulează</Button>
               <Button className="bg-green-600 hover:bg-green-500 font-bold" onClick={handleSave} disabled={saving}>{saving ? "Se salvează..." : editingItem ? "Salvează Modificări" : "Adaugă Produs"}</Button>
             </DialogFooter>
           </DialogContent>
@@ -447,7 +480,7 @@ export default function ManagerPage() {
                       {cat.description && <p className="text-slate-400">{cat.description}</p>}
                     </div>
                     <div className="flex gap-2">
-                      <Button variant="outline" size="sm" className="border-slate-700 text-slate-300 hover:bg-slate-800" onClick={() => handleEditCategory(cat)}>
+                      <Button variant="outline" size="sm" className="border-slate-600 text-slate-200 hover:bg-slate-700" onClick={() => handleEditCategory(cat)}>
                         <Pencil size={14} className="mr-1" /> Editează
                       </Button>
                       <Button variant="outline" size="sm" className="border-red-900/50 text-red-400 hover:bg-red-950" onClick={() => handleDeleteCategory(cat)}>
@@ -490,7 +523,7 @@ export default function ManagerPage() {
               </div>
             </div>
             <DialogFooter>
-              <Button variant="outline" className="border-slate-700 text-slate-300 hover:bg-slate-800" onClick={() => { setIsCategoryModalOpen(false); setEditingCategory(null); }}>
+              <Button variant="outline" className="border-slate-600 text-slate-200 hover:bg-slate-700" onClick={() => { setIsCategoryModalOpen(false); setEditingCategory(null); }}>
                 Anulează
               </Button>
               <Button className="bg-green-600 hover:bg-green-500 font-bold" onClick={handleSaveCategory} disabled={saving}>
@@ -499,6 +532,68 @@ export default function ManagerPage() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+        </>
+        )}
+
+        {activeTab === "reports" && (
+        <>
+        <div className="flex flex-col gap-4 mb-6">
+          <div className="flex justify-between items-center">
+            <h2 className="text-2xl font-bold text-white">Rapoarte</h2>
+            <div className="flex gap-2">
+              <button onClick={() => { const d = new Date(); setReportStart(d.toISOString().slice(0,10)); setReportEnd(d.toISOString().slice(0,10)); }} className="px-3 py-1 rounded text-xs font-semibold bg-slate-800 text-slate-400 hover:bg-slate-700">Azi</button>
+              <button onClick={() => { const e = new Date(); const s = new Date(); s.setDate(e.getDate()-7); setReportStart(s.toISOString().slice(0,10)); setReportEnd(e.toISOString().slice(0,10)); }} className="px-3 py-1 rounded text-xs font-semibold bg-slate-800 text-slate-400 hover:bg-slate-700">7 zile</button>
+              <button onClick={() => { const e = new Date(); const s = new Date(); s.setDate(e.getDate()-30); setReportStart(s.toISOString().slice(0,10)); setReportEnd(e.toISOString().slice(0,10)); }} className="px-3 py-1 rounded text-xs font-semibold bg-slate-800 text-slate-400 hover:bg-slate-700">30 zile</button>
+            </div>
+          </div>
+          <div className="flex items-center gap-3 text-sm text-slate-400">
+            <span>De la:</span>
+            <input type="date" value={reportStart} onChange={(e) => setReportStart(e.target.value)} className="bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-white focus:border-green-500 outline-none text-sm" />
+            <span>Până la:</span>
+            <input type="date" value={reportEnd} onChange={(e) => setReportEnd(e.target.value)} className="bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-white focus:border-green-500 outline-none text-sm" />
+          </div>
+        </div>
+        {reportLoading && <div className="text-center py-12 text-slate-400 text-lg">Se încarcă raportul...</div>}
+        {!reportLoading && reportData && (
+          <>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
+            <Card className="bg-slate-900 border-slate-800"><CardHeader><CardTitle className="text-slate-400 text-sm uppercase">Încasări Totale</CardTitle></CardHeader><CardContent><p className="text-3xl font-bold text-green-400">{reportData.total_revenue.toFixed(2)} RON</p></CardContent></Card>
+            <Card className="bg-slate-900 border-slate-800"><CardHeader><CardTitle className="text-slate-400 text-sm uppercase">Comenzi Totale</CardTitle></CardHeader><CardContent><p className="text-3xl font-bold text-blue-400">{reportData.total_orders}</p></CardContent></Card>
+            <Card className="bg-slate-900 border-slate-800"><CardHeader><CardTitle className="text-slate-400 text-sm uppercase">Valoare Medie</CardTitle></CardHeader><CardContent><p className="text-3xl font-bold text-green-400">{reportData.average_order_value.toFixed(2)} RON</p></CardContent></Card>
+          </div>
+          {reportData.revenue_by_day.length > 0 && (
+            <Card className="bg-slate-900 border-slate-800 mb-10">
+              <CardHeader><CardTitle className="text-slate-400 text-sm uppercase">Încasări pe Zi</CardTitle></CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={300}>
+                  <BarChart data={reportData.revenue_by_day}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                    <XAxis dataKey="date" stroke="#94a3b8" tick={{ fill: "#94a3b8" }} tickFormatter={(d: string) => d.slice(5)} />
+                    <YAxis stroke="#94a3b8" tick={{ fill: "#94a3b8" }} tickFormatter={(v: number) => `${v} RON`} />
+                    <Tooltip contentStyle={{ backgroundColor: "#1e293b", border: "1px solid #334155", borderRadius: "8px", color: "#e2e8f0" }} labelStyle={{ color: "#94a3b8" }} />
+                    <Bar dataKey="revenue" fill="#22c55e" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+          )}
+          {reportData.top_items.length > 0 && (
+            <Card className="bg-slate-900 border-slate-800">
+              <CardHeader><CardTitle className="text-slate-400 text-sm uppercase">Top 3 Produse</CardTitle></CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {reportData.top_items.map((item: any, i: number) => (
+                    <div key={item.name} className="flex justify-between items-center bg-slate-800 p-3 rounded-lg">
+                      <div className="flex items-center gap-3"><span className="text-2xl font-black text-slate-500">#{i + 1}</span><span className="text-white font-medium">{item.name}</span></div>
+                      <span className="text-green-400 font-bold">{item.quantity_sold} vândute</span>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+          </>
+        )}
         </>
         )}
 
