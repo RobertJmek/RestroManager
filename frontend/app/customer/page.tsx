@@ -175,7 +175,7 @@ function CustomerContent() {
       const orderPayload = {
         id: Math.floor(Math.random() * 1000),
         table_number: tableId,
-        items: cart.map(item => ({ name: item.name, quantity: item.quantity, prep_time: 15 })),
+        items: cart.map(item => ({ menu_item_id: item.productId, name: item.name, quantity: item.quantity, prep_time: 15 })),
         notes: cart.map(item => item.notes).filter(n => n).join(" | "),
         total: cartTotal
       };
@@ -333,7 +333,7 @@ function CustomerContent() {
                               <div className="grid gap-4 py-6">
                                 <textarea
                                   placeholder="Note speciale (alergii, preferințe)..."
-                                  className="w-full bg-slate-950 text-white rounded-xl p-5 min-h-[120px] border border-slate-700 focus:border-violet-500 outline-none"
+                                  className="w-full bg-slate-950 text-white rounded-xl p-5 min-h-[120px] border border-slate-700 focus:border-violet-500 focus:ring-1 focus:ring-violet-500/30 outline-none"
                                   value={instructions}
                                   onChange={(e) => setInstructions(e.target.value)}
                                 />
@@ -393,7 +393,7 @@ function CustomerContent() {
                           <div className="grid gap-4 py-6">
                             <textarea
                               placeholder="Note speciale (alergii, preferințe)..."
-                              className="w-full bg-slate-950 text-white rounded-xl p-5 min-h-[120px] border border-slate-700 focus:border-violet-500 outline-none"
+                              className="w-full bg-slate-950 text-white rounded-xl p-5 min-h-[120px] border border-slate-700 focus:border-violet-500 focus:ring-1 focus:ring-violet-500/30 outline-none"
                               value={instructions}
                               onChange={(e) => setInstructions(e.target.value)}
                             />
@@ -452,7 +452,7 @@ function CustomerContent() {
                     </div>
                   ))}
                   <div className="border-t border-slate-700 mt-2 pt-4 flex justify-between items-center">
-                    <span className="text-lg font-medium text-slate-300">Total:</span>
+                    <span className="text-lg font-medium text-slate-200">Total:</span>
                     <span className="text-2xl font-black text-white">{cartTotal.toFixed(2)} RON</span>
                   </div>
                 </div>

@@ -41,7 +41,7 @@ function ChefContent() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-900 p-8 text-white">
+    <div className="min-h-screen bg-slate-950 p-8 text-white">
       <header className="flex justify-between items-center mb-8">
         <h1 className="text-4xl font-black text-orange-500 tracking-tight">KITCHEN DISPLAY SYSTEM</h1>
         <div className="flex items-center gap-6">
