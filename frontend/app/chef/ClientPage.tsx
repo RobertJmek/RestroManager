@@ -27,7 +27,7 @@ function ChefContent() {
       const payload = JSON.parse(event.data)
       if (payload.event === "NEW_ORDER") {
         const newOrder: Order = { ...payload.data, ai_metadata: payload.ai_metadata }
-        setOrders((prev) => [newOrder, ...prev])
+        setOrders((prev) => prev.some(o => o.id === newOrder.id) ? prev : [newOrder, ...prev])
       }
     }
     return () => ws.close()
