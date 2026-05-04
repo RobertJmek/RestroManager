@@ -1,7 +1,8 @@
 "use client"
-import { useEffect, useState } from "react"
+import { useEffect, useState, useCallback } from "react"
 import UserProfileMenu from "../../components/ui/UserProfileMenu"
 import ClientRoleGuard from "../../components/ClientRoleGuard";
+import { apiRequest } from "@/lib/api";
 
 type Order = {
   id: number
@@ -16,29 +17,56 @@ type Order = {
 
 function ChefContent() {
   const [orders, setOrders] = useState<Order[]>([])
-  const [socket, setSocket] = useState<WebSocket | null>(null)
+
+  // Fetch comenzile active din DB la mount
+  const fetchActiveOrders = useCallback(async () => {
+    try {
+      const res = await apiRequest("/chef/active-orders");
+      if (res.ok) {
+        const data: Order[] = await res.json();
+        setOrders(data);
+      }
+    } catch (err) {
+      console.error("Eroare la fetch comenzi active:", err);
+    }
+  }, []);
 
   useEffect(() => {
-    const token = localStorage.getItem("token");
-    const wsUrl = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api").replace("https://", "wss://").replace("http://", "ws://").replace("/api", "");
-    const ws = new WebSocket(`${wsUrl}/ws/chef?token=${encodeURIComponent(token ?? "")}`)
-    setSocket(ws)
-    ws.onmessage = (event) => {
-      const payload = JSON.parse(event.data)
-      if (payload.event === "NEW_ORDER") {
-        const newOrder: Order = { ...payload.data, ai_metadata: payload.ai_metadata }
-        setOrders((prev) => [newOrder, ...prev])
-      }
-    }
-    return () => ws.close()
-  }, [])
+    fetchActiveOrders();
+  }, [fetchActiveOrders]);
 
-  const markAsReady = (orderId: number, tableNumber: number) => {
-    if (socket) {
-      socket.send(JSON.stringify({ action: "ORDER_READY", table: tableNumber, order_id: orderId }))
-      setOrders((prev) => prev.filter(o => o.id !== orderId))
+  // WebSocket pentru comenzi noi în timp real
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    const wsUrl = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api")
+      .replace("https://", "wss://")
+      .replace("http://", "ws://")
+      .replace("/api", "");
+    const ws = new WebSocket(`${wsUrl}/ws/chef?token=${encodeURIComponent(token ?? "")}`);
+    ws.onmessage = (event) => {
+      const payload = JSON.parse(event.data);
+      if (payload.event === "NEW_ORDER") {
+        const newOrder: Order = { ...payload.data, ai_metadata: payload.ai_metadata };
+        setOrders((prev) => [newOrder, ...prev]);
+      }
+    };
+    return () => ws.close();
+  }, []);
+
+  // Marchează comanda gata prin API (backend face și update DB + broadcast WS la Waiter)
+  const markAsReady = useCallback(async (orderId: number) => {
+    try {
+      const res = await apiRequest(`/orders/${orderId}/status`, {
+        method: "PATCH",
+        body: JSON.stringify({ status: "ready" }),
+      });
+      if (res.ok) {
+        setOrders((prev) => prev.filter((o) => o.id !== orderId));
+      }
+    } catch (err) {
+      console.error("Eroare la markAsReady:", err);
     }
-  }
+  }, []);
 
   return (
     <div className="min-h-screen bg-slate-900 p-8 text-white">
@@ -56,7 +84,7 @@ function ChefContent() {
             <div className="flex justify-between items-start mb-4"><h2 className="text-2xl font-black">MASA #{order.table_number}</h2>{order.ai_metadata?.urgency === "CRITICAL" && <span className="bg-red-600 text-[10px] font-bold px-2 py-1 rounded shadow-lg">URGENT</span>}</div>
             <ul className="space-y-3 mb-6">{order.items?.map((item, i) => (<li key={i} className="flex justify-between border-b border-slate-700/50 pb-2"><span className="font-medium text-lg">{item.name}</span><span className="text-orange-400 font-bold">x{item.quantity}</span></li>))}</ul>
             {order.notes && <div className="bg-yellow-900/20 border border-yellow-700/50 p-3 rounded mb-6"><p className="text-sm text-yellow-200 uppercase font-bold text-[10px]">Note Client:</p><p className="text-sm text-yellow-100 italic">{order.notes}</p></div>}
-            <button onClick={() => markAsReady(order.id, order.table_number)} className="w-full bg-green-600 hover:bg-green-500 text-white font-black py-4 rounded-lg transition-colors shadow-lg active:scale-95">MARCHEAZĂ GATA</button>
+            <button onClick={() => markAsReady(order.id)} className="w-full bg-green-600 hover:bg-green-500 text-white font-black py-4 rounded-lg transition-colors shadow-lg active:scale-95">MARCHEAZĂ GATA</button>
           </div>
         ))}
       </div>

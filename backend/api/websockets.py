@@ -29,16 +29,14 @@ async def websocket_endpoint(websocket: WebSocket, role: str, token: str = Query
         await websocket.close(code=WS_CLOSE_AUTH_FAILURE)
         return
 
-    await websocket.accept()
-
     # Normalize role to lowercase so broadcasts always find the right channel
     normalized_role = role.lower()
     # JWT-derived table_id for guest connections (cannot be spoofed via payload)
     jwt_table_id = payload.get("table_id")
 
-    if normalized_role not in manager.active_connections:
-        manager.active_connections[normalized_role] = []
-    manager.active_connections[normalized_role].append(websocket)
+    # BUG FIX: use manager.connect() which handles locking correctly
+    # (previously we called websocket.accept() twice and bypassed the lock)
+    await manager.connect(websocket, normalized_role)
     try:
         while True:
             data = await websocket.receive_json()
@@ -74,4 +72,6 @@ async def websocket_endpoint(websocket: WebSocket, role: str, token: str = Query
                 })
 
     except WebSocketDisconnect:
+        await manager.disconnect(websocket, normalized_role)
+    except Exception:
         await manager.disconnect(websocket, normalized_role)

@@ -325,9 +325,9 @@ async def delete_category(
     if not db_category:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Categoria nu a fost găsită")
 
-    items_count = session.exec(
+    items_count = len(session.exec(
         select(MenuItem).where(MenuItem.category_id == category_id)
-    ).count()
+    ).all())
 
     if items_count > 0:
         raise HTTPException(

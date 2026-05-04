@@ -110,7 +110,8 @@ function CustomerContent() {
     const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
     setMenuLoading(true);
     setMenuError(null);
-    fetch(`${API_URL}/menu`, {
+    // BUG FIX: endpoint-ul e GET /api/menu/ (cu trailing slash)
+    fetch(`${API_URL}/menu/`, {
       headers: { Authorization: `Bearer ${guestToken}` },
     })
       .then(res => {
@@ -172,11 +173,12 @@ function CustomerContent() {
 
     try {
       const token = guestToken;
+      // BUG FIX: eliminat câmpul `id` din payload — nu e definit în backend schema
+      // și genera un câmp random care putea cauza confuzii
       const orderPayload = {
-        id: Math.floor(Math.random() * 1000),
         table_number: tableId,
         items: cart.map(item => ({ name: item.name, quantity: item.quantity, prep_time: 15 })),
-        notes: cart.map(item => item.notes).filter(n => n).join(" | "),
+        notes: cart.map(item => item.notes).filter(n => n).join(" | ") || null,
         total: cartTotal
       };
 
@@ -191,12 +193,13 @@ function CustomerContent() {
 
       if (response.ok) {
         const result = await response.json();
-        showToast(`🔒 Redirecționare către Stripe pentru suma de ${cartTotal.toFixed(2)} RON...`);
-        console.log("AI Priority:", result.ai_safety);
+        showToast(`✅ Comanda a fost plasată! Total: ${cartTotal.toFixed(2)} RON`);
+        console.log("AI Priority:", result.ai_safety, "Order ID:", result.order_id);
 
         setCart([]);
         setIsCartOpen(false);
-        window.location.replace("/customer/success");
+        // BUG FIX: păstrăm table_id în URL pentru ca pagina success să poată naviga înapoi
+        window.location.replace(`/customer/success?table_id=${tableId}`);
       } else {
         const errData = await response.json();
         showToast(`❌ Eroare: ${errData.detail || "Nu s-a putut plasa comanda."}`, "error");
