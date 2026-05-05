@@ -49,11 +49,11 @@ async def process_order_creation_logic(
     source: str = "guest"
 ) -> dict:
     """Helper comun pentru client și chelner pentru a crea/lipi comanda."""
-    # 1. Verificăm dacă există o comandă activă pentru această masă
     active_order = session.exec(
         select(Order)
         .where(Order.table_id == table.id)
         .where(Order.status.in_([OrderStatus.pending, OrderStatus.ready]))
+        .order_by(Order.created_at.desc())
     ).first()
 
     # 2. Rulăm agenții AI pentru articolele NOI (agregăm toate notele produselor)
@@ -64,6 +64,7 @@ async def process_order_creation_logic(
     if active_order:
         db_order = active_order
         db_order.total_price += (order.total or 0.0)
+        db_order.status = OrderStatus.pending
     else:
         db_order = Order(
             table_id=table.id,
@@ -240,7 +241,9 @@ async def mark_order_ready(order_id: int, session: Session = Depends(get_session
         item.status = OrderItemStatus.ready_for_pickup
         session.add(item)
         
+    order.status = OrderStatus.ready
     table = session.get(Table, order.table_id)
+    session.add(order)
     session.commit()
     
     waiter_id = table.waiter_id

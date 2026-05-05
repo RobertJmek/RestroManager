@@ -31,7 +31,7 @@ function SuccessContent() {
         </div>
 
         {/* Am modificat href-ul pentru a include table_id */}
-        <Link href={`/menu?table_id=${tableId}`} className="w-full">
+        <Link href={`/customer?table_id=${tableId}`} className="w-full">
           <Button className="w-full bg-slate-800 hover:bg-slate-700 text-white rounded-xl py-6 font-semibold flex items-center justify-center gap-2">
             <ArrowLeft size={18} /> Înapoi la Meniu
           </Button>

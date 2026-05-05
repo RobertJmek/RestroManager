@@ -107,7 +107,8 @@ function CustomerContent() {
       try {
         const data = JSON.parse(event.data);
         if (data.event === "SESSION_CLOSED" && String(data.table) === urlTableId) {
-           localStorage.removeItem("token");
+           localStorage.removeItem("guest_token");
+           localStorage.removeItem("guest_table_id");
            window.location.href = "/customer/thank-you";
         }
       } catch (err) {

@@ -8,7 +8,7 @@ from db.session import get_session
 from core.websocket_manager import manager
 from models.table import Table, TableStatus
 from models.order import Order, OrderStatus
-from models.order_item import OrderItem
+from models.order_item import OrderItem, OrderItemStatus
 from models.menu_item import MenuItem
 from models.user import User
 from api.orders import OrderCreatePayload, process_order_creation_logic
@@ -216,14 +216,14 @@ async def close_table(table_id: int, session: Session = Depends(get_session)):
     if not table:
         raise HTTPException(status_code=404, detail="Masa nu există")
 
-    # Închidem comanda activă
-    order = session.exec(
+    # Închidem toate comenzile active
+    orders = session.exec(
         select(Order)
         .where(Order.table_id == table_id)
         .where(Order.status.in_([OrderStatus.pending, OrderStatus.ready, OrderStatus.served]))
-    ).first()
+    ).all()
 
-    if order:
+    for order in orders:
         order.status = OrderStatus.paid
         session.add(order)
 
@@ -307,8 +307,13 @@ async def get_chef_orders(session: Session = Depends(get_session)):
         table_number = table.number if table else order.table_id
 
         order_items = session.exec(
-            select(OrderItem).where(OrderItem.order_id == order.id)
+            select(OrderItem)
+            .where(OrderItem.order_id == order.id)
+            .where(OrderItem.status != OrderItemStatus.served)
         ).all()
+
+        if not order_items:
+            continue
 
         items = []
         items_for_ai = []
