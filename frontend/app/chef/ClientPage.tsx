@@ -47,7 +47,8 @@ function ChefContent() {
       const payload = JSON.parse(event.data);
       if (payload.event === "NEW_ORDER") {
         const newOrder: Order = { ...payload.data, ai_metadata: payload.ai_metadata };
-        setOrders((prev) => [newOrder, ...prev]);
+        // Prevent duplicate orders
+        setOrders((prev) => prev.some((o) => o.id === newOrder.id) ? prev : [newOrder, ...prev]);
       }
     };
     return () => ws.close();
@@ -69,7 +70,7 @@ function ChefContent() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-slate-900 p-8 text-white">
+    <div className="min-h-screen bg-slate-950 p-8 text-white">
       <header className="flex justify-between items-center mb-8">
         <h1 className="text-4xl font-black text-orange-500 tracking-tight">KITCHEN DISPLAY SYSTEM</h1>
         <div className="flex items-center gap-6">

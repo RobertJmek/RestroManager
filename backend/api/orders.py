@@ -22,6 +22,7 @@ MAX_NOTES_LENGTH = 500
 
 class OrderItemPayload(BaseModel):
     """Un singur produs din comandă."""
+    menu_item_id: Optional[int] = Field(default=None, ge=1)
     name: str = Field(min_length=1, max_length=200)
     quantity: int = Field(ge=1, le=99)
     prep_time: int = Field(ge=0, le=120)
@@ -80,6 +81,7 @@ async def create_order(
     safety_priority = run_ai_safety_agent(order.notes or "")
     cooking_advice = run_ai_kds_optimizer([item.model_dump() for item in order.items])
 
+
     sanitized_order = order.model_dump()
     sanitized_order["table_number"] = table_number
 
@@ -91,7 +93,6 @@ async def create_order(
         },
         "data": sanitized_order
     }
-
     # 2. Notificăm Bucătăria (KDS) în timp real
     await manager.broadcast_to_role("chef", payload)
 
@@ -101,6 +102,7 @@ async def create_order(
         "table": table_number,
         "message": f"Masă ocupată: #{table_number}"
     })
+
 
     # 4. Salvăm comanda în DB
     db_order = Order(
@@ -179,3 +181,4 @@ async def update_order_status(
         "order_id": order_id,
         "new_status": update.status.value
     }
+

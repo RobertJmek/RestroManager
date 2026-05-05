@@ -1,9 +1,16 @@
+'use client'; // OBLIGATORIU pentru a folosi useSearchParams
+
 import React from 'react';
 import { Button } from "@/components/ui/button";
 import { CheckCircle2, ArrowLeft } from "lucide-react";
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 
 export default function SuccessPage() {
+  const searchParams = useSearchParams();
+  // Încercăm să luăm table_id din URL, dacă nu există, punem "1" ca fallback
+  const tableId = searchParams.get('table_id') || '1';
+
   return (
     <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-4 text-slate-100 font-sans">
       <div className="max-w-md w-full bg-slate-900 border border-emerald-500/30 rounded-3xl p-8 shadow-2xl flex flex-col items-center text-center relative overflow-hidden">
@@ -23,7 +30,8 @@ export default function SuccessPage() {
           <p className="text-sm font-medium text-slate-300">Stare comandă: <span className="text-emerald-400 font-bold ml-1">În pregătire 👨‍🍳</span></p>
         </div>
 
-        <Link href="/customer" className="w-full">
+        {/* Am modificat href-ul pentru a include table_id */}
+        <Link href={`/menu?table_id=${tableId}`} className="w-full">
           <Button className="w-full bg-slate-800 hover:bg-slate-700 text-white rounded-xl py-6 font-semibold flex items-center justify-center gap-2">
             <ArrowLeft size={18} /> Înapoi la Meniu
           </Button>
