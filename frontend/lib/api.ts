@@ -104,12 +104,13 @@ export function logout() {
 /**
  * Extrage numele și rolul utilizatorului direct din token-ul salvat.
  */
-export function getStoredUser(): { name: string | null; role: string | null } {
-  if (typeof window === "undefined") return { name: null, role: null };
+export function getStoredUser(): { id: number | null; name: string | null; role: string | null } {
+  if (typeof window === "undefined") return { id: null, name: null, role: null };
   const token = localStorage.getItem("token");
-  if (!token) return { name: null, role: null };
+  if (!token) return { id: null, name: null, role: null };
   const payload = decodeJwtPayload(token);
   return {
+    id: payload?.user_id ?? null,
     name: payload?.name ?? null,
     role: payload?.role ?? null,
   };

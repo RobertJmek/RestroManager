@@ -6,7 +6,7 @@ import { CheckCircle2, ArrowLeft } from "lucide-react";
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 
-export default function SuccessPage() {
+function SuccessContent() {
   const searchParams = useSearchParams();
   // Încercăm să luăm table_id din URL, dacă nu există, punem "1" ca fallback
   const tableId = searchParams.get('table_id') || '1';
@@ -21,9 +21,9 @@ export default function SuccessPage() {
           <CheckCircle2 className="w-16 h-16 text-emerald-500" />
         </div>
         
-        <h1 className="text-3xl font-extrabold text-white mb-2">Plată Confirmată!</h1>
+        <h1 className="text-3xl font-extrabold text-white mb-2">Comandă Trimisă!</h1>
         <p className="text-slate-400 mb-8 leading-relaxed">
-          Stripe a procesat tranzacția cu succes. Comanda ta a fost trimisă direct pe ecranul KDS al bucătarului și va fi adusă la masă în cel mai scurt timp.
+          Comanda ta a fost trimisă direct pe ecranul KDS al bucătarului și va fi adusă la masă în cel mai scurt timp.
         </p>
         
         <div className="bg-slate-950 rounded-xl p-4 w-full mb-8 border border-slate-800">
@@ -38,5 +38,13 @@ export default function SuccessPage() {
         </Link>
       </div>
     </div>
+  );
+}
+
+export default function SuccessPage() {
+  return (
+    <React.Suspense fallback={<div className="min-h-screen bg-slate-950 flex items-center justify-center text-white">Se încarcă...</div>}>
+      <SuccessContent />
+    </React.Suspense>
   );
 }

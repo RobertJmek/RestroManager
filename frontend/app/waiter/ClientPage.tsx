@@ -3,7 +3,7 @@ import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { Bell, CheckCircle2 } from "lucide-react";
 import UserProfileMenu from "../../components/ui/UserProfileMenu";
 import ClientRoleGuard from "../../components/ClientRoleGuard";
-import { apiRequest } from "@/lib/api";
+import { apiRequest, getStoredUser } from "@/lib/api";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
 
@@ -15,6 +15,8 @@ type Table = {
   capacity: number;
   status: TableStatus;
   location: string | null;
+  waiter_id: number | null;
+  waiter_name: string | null;
 };
 
 const STATUS_CONFIG: Record<TableStatus, { label: string; classes: string }> = {
@@ -26,9 +28,18 @@ const STATUS_CONFIG: Record<TableStatus, { label: string; classes: string }> = {
 };
 
 function WaiterContent() {
+  const currentUser = getStoredUser() || { id: -1, role: "Waiter" };
   const [tables, setTables] = useState<Table[]>([]);
   const [loading, setLoading] = useState(true);
   const [notifications, setNotifications] = useState<any[]>([]);
+  const [selectedTable, setSelectedTable] = useState<Table | null>(null);
+  const [activeOrder, setActiveOrder] = useState<any>(null);
+  const [menuItems, setMenuItems] = useState<any[]>([]);
+  const [isMenuMode, setIsMenuMode] = useState(false);
+  const [cart, setCart] = useState<Record<string, any>>({});
+  const [isSendingOrder, setIsSendingOrder] = useState(false);
+  const [itemToAdd, setItemToAdd] = useState<any | null>(null);
+  const [specialInstructions, setSpecialInstructions] = useState("");
   // Ref to always have the latest tables in the WS handler without re-creating the socket
   const tablesRef = useRef<Table[]>([]);
 
@@ -48,9 +59,85 @@ function WaiterContent() {
     }
   }, []);
 
+  const fetchMenuItems = useCallback(async () => {
+    try {
+      const res = await apiRequest("/menu");
+      if (res.ok) {
+        const data = await res.json();
+        setMenuItems(data);
+      }
+    } catch (err) {
+      console.error("Eroare la fetch meniu:", err);
+    }
+  }, []);
+
   useEffect(() => {
     fetchTables();
-  }, [fetchTables]);
+    fetchMenuItems();
+  }, [fetchTables, fetchMenuItems]);
+
+  const confirmAddToCart = () => {
+    if (!itemToAdd) return;
+    const key = `${itemToAdd.id}-${specialInstructions}`;
+    setCart(prev => ({
+      ...prev,
+      [key]: {
+        ...itemToAdd,
+        special_instructions: specialInstructions,
+        quantity: (prev[key]?.quantity || 0) + 1,
+        cartKey: key
+      }
+    }));
+    setItemToAdd(null);
+    setSpecialInstructions("");
+  };
+
+  const removeFromCart = (cartKey: string) => {
+    setCart(prev => {
+      const newCart = { ...prev };
+      if (newCart[cartKey].quantity > 1) {
+        newCart[cartKey].quantity -= 1;
+      } else {
+        delete newCart[cartKey];
+      }
+      return newCart;
+    });
+  };
+
+  const cartTotal = Object.values(cart).reduce((sum: number, item: any) => sum + item.price * item.quantity, 0);
+
+  const sendWaiterOrder = async () => {
+    if (!selectedTable) return;
+    setIsSendingOrder(true);
+    const orderItems = Object.values(cart).map((i: any) => ({
+      name: i.name,
+      quantity: i.quantity,
+      prep_time: i.prep_time || 10,
+      special_instructions: i.special_instructions || null
+    }));
+
+    try {
+      const res = await apiRequest(`/waiter/tables/${selectedTable.id}/orders`, {
+        method: "POST",
+        body: JSON.stringify({
+          items: orderItems,
+          total: cartTotal,
+          table_number: selectedTable.number
+        })
+      });
+      if (res.ok) {
+        setCart({});
+        setIsMenuMode(false);
+        fetchTables();
+        const ordRes = await apiRequest(`/waiter/tables/${selectedTable.id}/active-order`);
+        if (ordRes.ok) setActiveOrder(await ordRes.json());
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsSendingOrder(false);
+    }
+  };
 
   // Actualizează statusul mesei în DB și local
   const updateTableStatus = useCallback(async (tableId: number, newStatus: TableStatus) => {
@@ -69,6 +156,24 @@ function WaiterContent() {
     }
   }, []);
 
+  const handleTableClick = async (table: Table) => {
+    if (table.status !== "free") {
+      setSelectedTable(table);
+      try {
+        const res = await apiRequest(`/waiter/tables/${table.id}/active-order`);
+        if (res.ok) {
+          setActiveOrder(await res.json());
+          setIsMenuMode(false);
+          setCart({});
+        } else {
+          setActiveOrder(null);
+        }
+      } catch (err) {
+        console.error("Eroare fetching order:", err);
+      }
+    }
+  };
+
   // WebSocket
   useEffect(() => {
     const token = localStorage.getItem("token");
@@ -80,6 +185,13 @@ function WaiterContent() {
 
     socket.onmessage = async (event) => {
       const data = JSON.parse(event.data);
+      if (data.event === "FOOD_READY_FOR_PICKUP") {
+         const user = getStoredUser();
+         if (data.target_waiter_id && data.target_waiter_id !== user.id) {
+             return; // Ignore completely if it's for someone else
+         }
+      }
+
       setNotifications(prev => [{ ...data, id: Date.now() }, ...prev]);
 
       if (data.event === "TABLE_OCCUPIED") {
@@ -90,11 +202,13 @@ function WaiterContent() {
         } else {
           fetchTables();
         }
-      } else if (data.event === "FOOD_READY") {
+      } else if (data.event === "FOOD_READY" || data.event === "FOOD_READY_FOR_PICKUP") {
         const table = tablesRef.current.find(t => t.number === data.table);
         if (table) {
           await updateTableStatus(table.id, "ready");
         }
+      } else if (data.event === "TABLE_CLAIMED") {
+        fetchTables();
       }
     };
 
@@ -133,19 +247,24 @@ function WaiterContent() {
                 return (
                   <div
                     key={table.id}
-                    className={`h-36 rounded-2xl border-2 flex flex-col items-center justify-center transition-all shadow-sm cursor-pointer select-none ${cfg.classes}`}
-                    onClick={() => {
-                      if (table.status !== "free") {
-                        updateTableStatus(table.id, "free");
-                      }
-                    }}
-                    title={table.status !== "free" ? "Click pentru a elibera masa" : ""}
+                    className={`h-36 rounded-2xl border-2 flex flex-col items-center justify-center transition-all shadow-sm cursor-pointer select-none relative ${cfg.classes} ${table.status !== "free" && !table.waiter_id ? "animate-pulse ring-4 ring-red-400" : ""}`}
+                    onClick={() => handleTableClick(table)}
+                    title={table.status !== "free" ? "Click pentru a vedea comanda" : ""}
                   >
                     <span className="text-xs font-bold uppercase">{table.location || "Masa"}</span>
                     <span className="text-4xl font-black">{table.number}</span>
                     <span className="text-[10px] mt-1 font-bold uppercase">{cfg.label}</span>
-                    {table.status !== "free" && (
-                      <span className="text-[9px] mt-1 opacity-60">click → eliberează</span>
+                    
+                    {table.status !== "free" && !table.waiter_id && (
+                      <span className="absolute bottom-2 bg-red-600 text-white text-[9px] font-bold px-2 py-0.5 rounded-full uppercase shadow-md">
+                        Necesită Preluare!
+                      </span>
+                    )}
+
+                    {table.status !== "free" && table.waiter_id && (
+                      <span className="absolute bottom-2 bg-slate-900/10 text-slate-700 text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 border border-slate-900/20">
+                        <span>👨‍🍳</span> {table.waiter_name}
+                      </span>
                     )}
                   </div>
                 );
@@ -164,12 +283,16 @@ function WaiterContent() {
               <div
                 key={n.id}
                 className={`p-4 rounded-xl border-l-4 shadow-sm ${
-                  n.event === "URGENT_CALL" ? "bg-red-50 border-red-500" : "bg-blue-50 border-blue-500"
+                  n.event === "URGENT_CALL" ? "bg-red-50 border-red-500" : 
+                  n.event === "BILL_REQUESTED" ? "bg-purple-50 border-purple-500" :
+                  "bg-blue-50 border-blue-500"
                 }`}
               >
                 <div className="flex justify-between items-start">
                   <p className="font-black text-sm uppercase tracking-wider">
-                    {n.event === "URGENT_CALL" ? "⚠️ ASISTENȚĂ" : "🍳 BUCĂTĂRIE"}
+                    {n.event === "URGENT_CALL" ? "⚠️ ASISTENȚĂ" : 
+                     n.event === "BILL_REQUESTED" ? "💳 NOTĂ DE PLATĂ" : 
+                     "🍳 BUCĂTĂRIE"}
                   </p>
                   <span className="text-[10px] text-slate-400 font-mono">ACUM</span>
                 </div>
@@ -183,6 +306,220 @@ function WaiterContent() {
           </div>
         </section>
       </div>
+
+      {selectedTable && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onClick={() => setSelectedTable(null)}>
+          <div className="bg-white rounded-3xl p-6 w-full max-w-2xl shadow-2xl flex flex-col max-h-[90vh]" onClick={e => e.stopPropagation()}>
+            <div className="flex justify-between items-center mb-6 shrink-0">
+               <h2 className="text-2xl font-black">{isMenuMode ? `Meniu Masă #${selectedTable.number}` : `Masă #${selectedTable.number}`}</h2>
+               <button onClick={() => { setSelectedTable(null); setIsMenuMode(false); setCart({}); }} className="text-slate-400 hover:text-slate-700 text-xl font-bold">✕</button>
+            </div>
+            
+            <div className="overflow-y-auto flex-1 min-h-0 pr-2">
+            {isMenuMode ? (
+              <div className="space-y-8 pb-32">
+                {/* Group by category */}
+                {Array.from(new Set(menuItems.map(i => i.category))).map(category => (
+                  <div key={category as string}>
+                    <h3 className="font-black text-slate-800 uppercase mb-4 text-sm tracking-wider border-b pb-2">{category as string}</h3>
+                    <div className="space-y-3">
+                      {menuItems.filter(i => i.category === category).map(item => (
+                        <div key={item.id} className="flex justify-between items-center bg-slate-50 p-3 rounded-xl border border-slate-100">
+                          <div>
+                            <p className="font-bold text-slate-800">{item.name}</p>
+                            <p className="text-sm font-bold text-green-600">{item.price} Lei</p>
+                          </div>
+                          <button 
+                            onClick={() => setItemToAdd(item)}
+                            className="bg-blue-100 hover:bg-blue-200 text-blue-700 font-bold px-4 py-2 rounded-full transition-colors text-sm shrink-0"
+                          >
+                            Adaugă
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : selectedTable.status !== "free" && !selectedTable.waiter_id ? (
+              <div className="py-8 flex flex-col items-center">
+                <p className="text-slate-500 font-medium mb-6 text-center">Această masă are nevoie de un chelner asignat.</p>
+                <button 
+                  onClick={async () => {
+                    await apiRequest(`/waiter/tables/${selectedTable.id}/claim`, { method: "PUT" });
+                    fetchTables();
+                    setSelectedTable({ ...selectedTable, waiter_id: currentUser.id, waiter_name: currentUser.name || "Tu" });
+                  }}
+                  className="w-full py-4 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-black text-lg shadow-lg transition-transform active:scale-95"
+                >
+                  PREIA MASA
+                </button>
+              </div>
+            ) : (
+              <>
+                {selectedTable.waiter_id && selectedTable.waiter_id !== currentUser.id && (
+                  <div className="bg-yellow-50 border border-yellow-400 p-3 rounded-xl mb-4">
+                    <p className="text-yellow-800 font-bold text-center text-sm">Masă gestionată de {selectedTable.waiter_name}. Acces Read-Only.</p>
+                  </div>
+                )}
+                {activeOrder ? (
+                  <div className="mb-6 space-y-6 max-h-[60vh] overflow-y-auto pr-2">
+                    {/* Grupa 1: În așteptare */}
+                    {activeOrder.items.filter((i: any) => i.status === 'pending').length > 0 && (
+                      <div>
+                        <h4 className="text-[10px] font-black text-slate-400 uppercase mb-2 tracking-wider">În așteptare (Bucătărie)</h4>
+                        <ul className="space-y-2">
+                          {activeOrder.items.filter((i: any) => i.status === 'pending').map((item: any) => (
+                             <li key={item.id} className="flex flex-col bg-yellow-50/50 p-3 rounded-lg border border-yellow-100">
+                                <div className="flex justify-between items-center">
+                                  <div>
+                                     <span className="font-bold text-slate-800">{item.name}</span>
+                                     <span className="text-blue-500 font-bold ml-2">x{item.quantity}</span>
+                                  </div>
+                                  <span className="text-[10px] bg-yellow-100 text-yellow-700 px-2 py-1 rounded-full font-bold">În preparare ⏳</span>
+                                </div>
+                                {item.special_instructions && <p className="text-[10px] text-yellow-800 italic mt-1 font-medium bg-yellow-100/50 inline-block self-start px-2 py-0.5 rounded border border-yellow-200">⚠️ {item.special_instructions}</p>}
+                             </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    
+                    {/* Grupa 2: De dus la masă */}
+                    {activeOrder.items.filter((i: any) => i.status === 'ready_for_pickup').length > 0 && (
+                      <div>
+                        <h4 className="text-[10px] font-black text-blue-500 uppercase mb-2 tracking-wider">De dus la masă</h4>
+                        <ul className="space-y-2">
+                          {activeOrder.items.filter((i: any) => i.status === 'ready_for_pickup').map((item: any) => (
+                             <li key={item.id} className="flex flex-col bg-blue-50 p-3 rounded-lg border border-blue-200 shadow-sm">
+                                <div className="flex justify-between items-center">
+                                  <div>
+                                     <span className="font-bold text-slate-800">{item.name}</span>
+                                     <span className="text-blue-600 font-bold ml-2">x{item.quantity}</span>
+                                  </div>
+                                  {selectedTable.waiter_id === currentUser.id ? (
+                                    <button 
+                                       onClick={async () => {
+                                          await apiRequest(`/orders/items/${item.id}/served`, { method: "PUT" });
+                                          setActiveOrder({ ...activeOrder, items: activeOrder.items.map((i: any) => i.id === item.id ? { ...i, status: 'served' } : i) });
+                                       }}
+                                       className="bg-green-500 hover:bg-green-600 text-white text-[10px] px-3 py-1.5 rounded-full font-bold shadow-sm transition-transform active:scale-95"
+                                    >
+                                       Am servit 🍽️
+                                    </button>
+                                  ) : (
+                                    <span className="text-[10px] bg-green-100 text-green-700 px-2 py-1 rounded-full font-bold">Gata de preluat</span>
+                                  )}
+                                </div>
+                                {item.special_instructions && <p className="text-[10px] text-blue-800 italic mt-1 font-medium bg-blue-100/50 inline-block self-start px-2 py-0.5 rounded border border-blue-200">⚠️ {item.special_instructions}</p>}
+                             </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    
+                    {/* Grupa 3: Servite */}
+                    {activeOrder.items.filter((i: any) => i.status === 'served').length > 0 && (
+                      <div>
+                        <h4 className="text-[10px] font-black text-green-600 uppercase mb-2 tracking-wider">Servite pe masă</h4>
+                        <ul className="space-y-2">
+                          {activeOrder.items.filter((i: any) => i.status === 'served').map((item: any) => (
+                             <li key={item.id} className="flex flex-col bg-slate-50 p-3 rounded-lg border border-slate-100 opacity-60">
+                                <div className="flex justify-between items-center">
+                                  <div>
+                                     <span className="font-bold text-slate-800">{item.name}</span>
+                                     <span className="text-slate-500 font-bold ml-2">x{item.quantity}</span>
+                                  </div>
+                                  <span className="text-[10px] text-green-600 font-bold flex items-center"><CheckCircle2 className="w-3 h-3 mr-1" /> Servit</span>
+                                </div>
+                                {item.special_instructions && <p className="text-[10px] text-slate-500 italic mt-1 font-medium bg-slate-200/50 inline-block self-start px-2 py-0.5 rounded border border-slate-200">⚠️ {item.special_instructions}</p>}
+                             </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-slate-500 italic mb-6 text-center py-8">Nu există o comandă activă pentru această masă.</p>
+                )}
+
+                {selectedTable.waiter_id === currentUser.id && (
+                  <div className="flex flex-col gap-3 mt-4">
+                    <button 
+                      onClick={() => setIsMenuMode(true)} 
+                      className="w-full py-4 rounded-xl bg-blue-600 text-white font-bold hover:bg-blue-500 transition-colors shadow-lg active:scale-95 flex items-center justify-center gap-2"
+                    >
+                      <span>➕</span> Adaugă Produse Manual
+                    </button>
+                    <button 
+                      onClick={async () => {
+                        await apiRequest(`/tables/${selectedTable.id}/close`, {
+                          method: "POST"
+                        });
+                        setTables(prev => prev.map(t => t.id === selectedTable.id ? { ...t, status: "free", waiter_id: null, waiter_name: null } : t));
+                        setSelectedTable(null);
+                      }} 
+                      className="w-full py-4 rounded-xl bg-red-100 text-red-700 font-bold hover:bg-red-200 transition-colors border border-red-200"
+                    >
+                      Închide Masa
+                    </button>
+                  </div>
+                )}
+              </>
+            )}
+            </div>
+
+            {/* Cart sticky bar outside the scroll area but inside the modal */}
+            {isMenuMode && Object.keys(cart).length > 0 && (
+              <div className="mt-6 pt-6 border-t border-slate-100 shrink-0">
+                <div className="max-h-[30vh] overflow-y-auto mb-4 bg-slate-50 rounded-xl p-2 border border-slate-200">
+                  <h4 className="text-xs font-black text-slate-400 uppercase mb-2 px-2">Comanda curentă</h4>
+                  {Object.values(cart).map((cItem: any) => (
+                    <div key={cItem.cartKey} className="flex justify-between items-center py-2 px-2 border-b border-slate-200 last:border-0">
+                      <div className="flex-1">
+                        <p className="font-bold text-sm text-slate-800">{cItem.name} <span className="text-blue-600">x{cItem.quantity}</span></p>
+                        {cItem.special_instructions && <p className="text-xs text-slate-500 italic flex items-center gap-1"><span>⚠️</span> Note: {cItem.special_instructions}</p>}
+                      </div>
+                      <button onClick={() => removeFromCart(cItem.cartKey)} className="text-red-500 font-bold text-xl px-2 shrink-0">&times;</button>
+                    </div>
+                  ))}
+                </div>
+                <div className="flex justify-between items-end mb-4">
+                  <span className="font-bold text-slate-500 uppercase tracking-wider text-xs">Total Comandă</span>
+                  <span className="text-3xl font-black text-slate-800">{cartTotal.toFixed(2)} Lei</span>
+                </div>
+                <button
+                  onClick={sendWaiterOrder}
+                  disabled={isSendingOrder}
+                  className="w-full bg-orange-500 hover:bg-orange-400 text-white py-4 rounded-2xl font-black text-lg transition-transform active:scale-95 shadow-xl disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {isSendingOrder ? "Se trimite..." : "TRIMITE LA BUCĂTĂRIE"}
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Item Modal pentru instrucțiuni speciale */}
+      {itemToAdd && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[60] p-4" onClick={() => setItemToAdd(null)}>
+          <div className="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl flex flex-col" onClick={e => e.stopPropagation()}>
+            <h3 className="text-2xl font-black mb-2">{itemToAdd.name}</h3>
+            <p className="text-sm font-bold text-green-600 mb-6">{itemToAdd.price} Lei</p>
+            <textarea
+              placeholder="Mențiuni speciale (opțional)..."
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl p-4 min-h-[100px] mb-6 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              value={specialInstructions}
+              onChange={e => setSpecialInstructions(e.target.value)}
+            />
+            <div className="flex gap-3">
+              <button onClick={() => setItemToAdd(null)} className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl transition-colors">Anulează</button>
+              <button onClick={confirmAddToCart} className="flex-1 py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl shadow-lg transition-colors">Confirmă</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

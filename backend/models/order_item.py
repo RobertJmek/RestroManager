@@ -1,5 +1,11 @@
 from sqlmodel import Field, SQLModel
 from typing import Optional
+from enum import Enum
+
+class OrderItemStatus(str, Enum):
+    pending = "pending"
+    ready_for_pickup = "ready_for_pickup"
+    served = "served"
 
 class OrderItem(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
@@ -7,3 +13,4 @@ class OrderItem(SQLModel, table=True):
     menu_item_id: int = Field(foreign_key="menuitem.id", gt=0)
     quantity: int = Field(default=1, gt=0) # Nu poți comanda 0 sau cantități negative
     special_instructions: Optional[str] = Field(default=None, max_length=500)
+    status: OrderItemStatus = Field(default=OrderItemStatus.pending)

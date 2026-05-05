@@ -9,7 +9,7 @@ from core.websocket_manager import manager
 from core.ai import run_ai_kds_optimizer, run_ai_safety_agent
 from db.session import get_session
 from models.order import Order, OrderStatus
-from models.order_item import OrderItem
+from models.order_item import OrderItem, OrderItemStatus
 from models.menu_item import MenuItem
 from models.table import Table, TableStatus
 
@@ -26,24 +26,14 @@ class OrderItemPayload(BaseModel):
     name: str = Field(min_length=1, max_length=200)
     quantity: int = Field(ge=1, le=99)
     prep_time: int = Field(ge=0, le=120)
+    special_instructions: Optional[str] = Field(default=None, max_length=500)
 
 
 class OrderCreatePayload(BaseModel):
     """Payload-ul complet trimis de clientul Guest."""
     items: List[OrderItemPayload] = Field(min_length=1, max_length=50)
-    notes: Optional[str] = Field(default=None, max_length=MAX_NOTES_LENGTH)
     table_number: Optional[int] = Field(default=None, ge=1)
     total: Optional[float] = Field(default=None, ge=0.0)
-
-    @field_validator("notes")
-    @classmethod
-    def sanitize_notes(cls, v: Optional[str]) -> Optional[str]:
-        """Elimină caracterele de control."""
-        if v is None:
-            return v
-        import re
-        sanitized = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]", "", v)
-        return sanitized[:MAX_NOTES_LENGTH]
 
 
 class OrderStatusUpdate(BaseModel):
@@ -51,6 +41,101 @@ class OrderStatusUpdate(BaseModel):
 
 
 # --- Endpoints ---
+
+async def process_order_creation_logic(
+    session: Session,
+    table: Table,
+    order: OrderCreatePayload,
+    source: str = "guest"
+) -> dict:
+    """Helper comun pentru client și chelner pentru a crea/lipi comanda."""
+    # 1. Verificăm dacă există o comandă activă pentru această masă
+    active_order = session.exec(
+        select(Order)
+        .where(Order.table_id == table.id)
+        .where(Order.status.in_([OrderStatus.pending, OrderStatus.ready]))
+    ).first()
+
+    # 2. Rulăm agenții AI pentru articolele NOI (agregăm toate notele produselor)
+    all_instructions = " | ".join(i.special_instructions for i in order.items if i.special_instructions)
+    safety_priority = run_ai_safety_agent(all_instructions)
+    cooking_advice = run_ai_kds_optimizer([item.model_dump() for item in order.items])
+
+    if active_order:
+        db_order = active_order
+        db_order.total_price += (order.total or 0.0)
+    else:
+        db_order = Order(
+            table_id=table.id,
+            total_price=order.total or 0.0,
+            status=OrderStatus.pending,
+            special_requests="", # Am eliminat notița globală
+        )
+        session.add(db_order)
+    
+    session.commit()
+    session.refresh(db_order)
+
+    # 3. Salvăm produsele noi în OrderItem
+    new_items_responses = []
+    for item_payload in order.items:
+        menu_item = session.exec(
+            select(MenuItem).where(MenuItem.name == item_payload.name)
+        ).first()
+        if menu_item:
+            order_item = OrderItem(
+                order_id=db_order.id,
+                menu_item_id=menu_item.id,
+                quantity=item_payload.quantity,
+                special_instructions=item_payload.special_instructions,
+            )
+            session.add(order_item)
+            session.commit()
+            session.refresh(order_item)
+            new_items_responses.append({
+                "id": order_item.id,
+                "name": menu_item.name,
+                "quantity": order_item.quantity,
+                "status": order_item.status.value,
+                "special_instructions": order_item.special_instructions
+            })
+
+    # 4. Actualizăm statusul mesei dacă e liberă
+    if table.status == TableStatus.free:
+        table.status = TableStatus.occupied
+        session.add(table)
+        session.commit()
+
+    # 5. Broadcast la Chef cu ID-ul real și DOAR produsele noi
+    payload = {
+        "event": "NEW_ORDER",
+        "ai_metadata": {
+            "urgency": safety_priority,
+            "cooking_strategy": cooking_advice
+        },
+        "data": {
+            "id": db_order.id,
+            "table_number": table.number,
+            "items": new_items_responses
+        }
+    }
+    await manager.broadcast_to_role("chef", payload)
+
+    # 6. Broadcast la Waiter (să știe că s-a actualizat masa)
+    if not active_order or source == "guest":
+        await manager.broadcast_to_role("waiter", {
+            "event": "TABLE_OCCUPIED",
+            "table": table.number,
+            "message": f"Comandă nouă Masă: #{table.number}"
+        })
+
+    return {
+        "status": "Processed by AI and sent to KDS",
+        "ai_safety": safety_priority,
+        "table_id": table.number,
+        "order_id": db_order.id
+    }
+
 
 @router.post("")
 async def create_order(
@@ -77,70 +162,7 @@ async def create_order(
             detail=f"Masa {table_number} nu există în baza de date"
         )
 
-    # 1. Rulăm agenții AI
-    safety_priority = run_ai_safety_agent(order.notes or "")
-    cooking_advice = run_ai_kds_optimizer([item.model_dump() for item in order.items])
-
-
-    sanitized_order = order.model_dump()
-    sanitized_order["table_number"] = table_number
-
-    payload = {
-        "event": "NEW_ORDER",
-        "ai_metadata": {
-            "urgency": safety_priority,
-            "cooking_strategy": cooking_advice
-        },
-        "data": sanitized_order
-    }
-    # 2. Notificăm Bucătăria (KDS) în timp real
-    await manager.broadcast_to_role("chef", payload)
-
-    # 3. Notificăm Chelnerul că s-a ocupat o masă
-    await manager.broadcast_to_role("waiter", {
-        "event": "TABLE_OCCUPIED",
-        "table": table_number,
-        "message": f"Masă ocupată: #{table_number}"
-    })
-
-
-    # 4. Salvăm comanda în DB
-    db_order = Order(
-        table_id=table.id,
-        total_price=order.total or 0.0,
-        status=OrderStatus.pending,
-        special_requests=order.notes,
-    )
-    session.add(db_order)
-    session.commit()
-    session.refresh(db_order)
-
-    # 5. Salvăm produsele în OrderItem (lookup după nume)
-    for item_payload in order.items:
-        menu_item = session.exec(
-            select(MenuItem).where(MenuItem.name == item_payload.name)
-        ).first()
-        if menu_item:
-            order_item = OrderItem(
-                order_id=db_order.id,
-                menu_item_id=menu_item.id,
-                quantity=item_payload.quantity,
-                special_instructions=order.notes,
-            )
-            session.add(order_item)
-    session.commit()
-
-    # 6. Actualizăm statusul mesei în DB la 'occupied'
-    table.status = TableStatus.occupied
-    session.add(table)
-    session.commit()
-
-    return {
-        "status": "Processed by AI and sent to KDS",
-        "ai_safety": safety_priority,
-        "table_id": table_number,
-        "order_id": db_order.id
-    }
+    return await process_order_creation_logic(session, table, order, source="guest")
 
 
 @router.patch("/{order_id}/status", dependencies=[Depends(require_role(["Chef", "Manager"]))])
@@ -182,3 +204,63 @@ async def update_order_status(
         "new_status": update.status.value
     }
 
+
+@router.put("/items/{item_id}/ready", dependencies=[Depends(require_role(["Chef"]))])
+async def mark_item_ready(item_id: int, session: Session = Depends(get_session)):
+    item = session.get(OrderItem, item_id)
+    if not item:
+        raise HTTPException(status_code=404, detail="Item not found")
+    item.status = OrderItemStatus.ready_for_pickup
+    session.add(item)
+    
+    order = session.get(Order, item.order_id)
+    table = session.get(Table, order.table_id)
+    session.commit()
+    
+    waiter_id = table.waiter_id
+    payload = {
+        "event": "FOOD_READY_FOR_PICKUP",
+        "table": table.number,
+        "target_waiter_id": waiter_id,
+        "message": f"Mâncarea pentru Masa {table.number} te așteaptă la geam!"
+    }
+    await manager.broadcast_to_role("waiter", payload)
+    
+    return {"status": "Item ready for pickup", "item_id": item_id}
+
+
+@router.put("/{order_id}/ready-for-pickup", dependencies=[Depends(require_role(["Chef"]))])
+async def mark_order_ready(order_id: int, session: Session = Depends(get_session)):
+    order = session.get(Order, order_id)
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+        
+    items = session.exec(select(OrderItem).where(OrderItem.order_id == order_id)).all()
+    for item in items:
+        item.status = OrderItemStatus.ready_for_pickup
+        session.add(item)
+        
+    table = session.get(Table, order.table_id)
+    session.commit()
+    
+    waiter_id = table.waiter_id
+    payload = {
+        "event": "FOOD_READY_FOR_PICKUP",
+        "table": table.number,
+        "target_waiter_id": waiter_id,
+        "message": f"Mâncarea pentru Masa {table.number} te așteaptă la geam!"
+    }
+    await manager.broadcast_to_role("waiter", payload)
+    
+    return {"status": "Order ready for pickup", "order_id": order_id}
+
+
+@router.put("/items/{item_id}/served", dependencies=[Depends(require_role(["Waiter", "Manager"]))])
+async def mark_item_served(item_id: int, session: Session = Depends(get_session)):
+    item = session.get(OrderItem, item_id)
+    if not item:
+        raise HTTPException(status_code=404, detail="Item not found")
+    item.status = OrderItemStatus.served
+    session.add(item)
+    session.commit()
+    return {"status": "Item served", "item_id": item_id}

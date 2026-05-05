@@ -31,6 +31,7 @@ interface MenuItem {
 import { useSearchParams } from 'next/navigation';
 import { Suspense } from 'react';
 import UserProfileMenu from "../../components/ui/UserProfileMenu";
+import { apiRequest } from "@/lib/api";
 
 function CustomerContent() {
   const [selectedItem, setSelectedItem] = useState<MenuItem | null>(null);
@@ -48,6 +49,8 @@ function CustomerContent() {
   const [menu, setMenu] = useState<MenuItem[]>([]);
   const [menuLoading, setMenuLoading] = useState(true);
   const [menuError, setMenuError] = useState<string | null>(null);
+  
+  const [isBillDialogOpen, setIsBillDialogOpen] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
@@ -100,6 +103,17 @@ function CustomerContent() {
     if (!guestToken) return;
     const wsUrl = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api").replace("https://", "wss://").replace("http://", "ws://").replace("/api", "");
     const ws = new WebSocket(`${wsUrl}/ws/guest?token=${encodeURIComponent(guestToken)}`);
+    ws.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        if (data.event === "SESSION_CLOSED" && String(data.table) === urlTableId) {
+           localStorage.removeItem("token");
+           window.location.href = "/customer/thank-you";
+        }
+      } catch (err) {
+        console.error("Eroare parsare mesaj WS:", err);
+      }
+    };
     setSocket(ws);
     return () => ws.close();
   }, [guestToken]);
@@ -177,8 +191,13 @@ function CustomerContent() {
       // și genera un câmp random care putea cauza confuzii
       const orderPayload = {
         table_number: tableId,
-        items: cart.map(item => ({ menu_item_id: item.productId, name: item.name, quantity: item.quantity, prep_time: 15 })),
-        notes: cart.map(item => item.notes).filter(n => n).join(" | ") || null,
+        items: cart.map(item => ({ 
+          menu_item_id: item.productId, 
+          name: item.name, 
+          quantity: item.quantity, 
+          prep_time: 15,
+          special_instructions: item.notes || null 
+        })),
         total: cartTotal
       };
 
@@ -206,7 +225,24 @@ function CustomerContent() {
       }
     } catch (error) {
       console.error("Eroare conexiune:", error);
-      showToast("❌ Nu ne-am putut conecta la server.", "error");
+      showToast("❌ Nu s-a putut apela chelnerul.", "error");
+    }
+  };
+
+  const handleRequestBill = async (method: "cash" | "card") => {
+    try {
+      const res = await apiRequest(`/tables/${tableId}/request-bill`, {
+        method: "POST",
+        body: JSON.stringify({ payment_method: method })
+      });
+      if (res.ok) {
+        showToast("✅ Am chemat chelnerul cu nota de plată!");
+        setIsBillDialogOpen(false);
+      } else {
+        showToast("❌ Eroare la cererea notei.", "error");
+      }
+    } catch (err) {
+      showToast("❌ Eroare conexiune.", "error");
     }
   };
 
@@ -395,7 +431,7 @@ function CustomerContent() {
                           </DialogHeader>
                           <div className="grid gap-4 py-6">
                             <textarea
-                              placeholder="Note speciale (alergii, preferințe)..."
+                              placeholder="Mențiuni speciale (opțional)..."
                               className="w-full bg-slate-950 text-white rounded-xl p-5 min-h-[120px] border border-slate-700 focus:border-violet-500 focus:ring-1 focus:ring-violet-500/30 outline-none"
                               value={instructions}
                               onChange={(e) => setInstructions(e.target.value)}
@@ -446,7 +482,7 @@ function CustomerContent() {
                     <div key={cartItem.id} className="flex justify-between items-center bg-slate-800 p-3 rounded-lg border border-slate-700">
                       <div>
                         <p className="font-bold text-white">{cartItem.name}</p>
-                        {cartItem.notes && <p className="text-xs text-slate-400">Notă: {cartItem.notes}</p>}
+                        {cartItem.notes && <p className="text-xs text-slate-400 italic">Notă: {cartItem.notes}</p>}
                         <p className="text-sm text-indigo-300">{cartItem.price.toFixed(2)} RON</p>
                       </div>
                       <Button variant="ghost" size="icon" onClick={() => removeFromCart(cartItem.id)} className="text-red-400 hover:text-red-300 hover:bg-red-400/10">
@@ -467,9 +503,35 @@ function CustomerContent() {
                 onClick={handleCheckout}
                 disabled={cart.length === 0}
               >
-                <CreditCard size={20} /> Checkout cu Stripe
+                <ShoppingCart size={20} /> Trimite Comanda
               </Button>
             </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* BUTON CERE NOTA */}
+        <Button
+          onClick={() => setIsBillDialogOpen(true)}
+          className="bg-emerald-600 hover:bg-emerald-500 text-white rounded-full w-16 h-16 shadow-2xl flex flex-col items-center justify-center p-0 transition-transform hover:scale-110 active:scale-90 border-2 border-emerald-400"
+        >
+          <CreditCard size={24} />
+          <span className="text-[10px] font-bold mt-1 uppercase leading-none">Notă</span>
+        </Button>
+        <Dialog open={isBillDialogOpen} onOpenChange={setIsBillDialogOpen}>
+          <DialogContent className="bg-slate-900 border-slate-700 text-white sm:max-w-[400px]">
+            <DialogHeader>
+              <DialogTitle className="text-2xl font-bold flex items-center gap-2">
+                💳 Cum dorești să plătești?
+              </DialogTitle>
+            </DialogHeader>
+            <div className="py-6 flex flex-col gap-4">
+              <Button onClick={() => handleRequestBill("cash")} className="w-full bg-green-600 hover:bg-green-500 py-8 text-lg font-bold rounded-xl flex items-center justify-center gap-3">
+                <span className="text-2xl">💵</span> Cash (Numerar)
+              </Button>
+              <Button onClick={() => handleRequestBill("card")} className="w-full bg-blue-600 hover:bg-blue-500 py-8 text-lg font-bold rounded-xl flex items-center justify-center gap-3">
+                <span className="text-2xl">💳</span> Card (POS)
+              </Button>
+            </div>
           </DialogContent>
         </Dialog>
 
