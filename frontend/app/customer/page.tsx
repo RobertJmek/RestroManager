@@ -173,7 +173,6 @@ function CustomerContent() {
     try {
       const token = guestToken;
       const orderPayload = {
-        id: Math.floor(Math.random() * 1000),
         table_number: tableId,
         items: cart.map(item => ({ menu_item_id: item.productId, name: item.name, quantity: item.quantity, prep_time: 15 })),
         notes: cart.map(item => item.notes).filter(n => n).join(" | "),

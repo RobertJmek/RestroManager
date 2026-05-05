@@ -2,12 +2,13 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field, field_validator
 from typing import List, Optional
-from sqlmodel import Session
+from sqlmodel import Session, select
 from db.session import get_session
 from core.security import get_current_guest
 from models.user import TokenData
 from models.order import Order
 from models.order_item import OrderItem
+from models.menu_item import MenuItem
 from core.websocket_manager import manager
 from core.ai import run_ai_kds_optimizer, run_ai_safety_agent
 
@@ -19,7 +20,7 @@ MAX_NOTES_LENGTH = 500
 
 class OrderItemPayload(BaseModel):
     """Un singur produs din comandă."""
-    menu_item_id: Optional[int] = Field(default=None, ge=1)
+    menu_item_id: int = Field(ge=1)
     name: str = Field(min_length=1, max_length=200)
     quantity: int = Field(ge=1, le=99)
     prep_time: int = Field(ge=0, le=120)
@@ -66,29 +67,38 @@ async def create_order(
     safety_priority = run_ai_safety_agent(order.notes or "")
     cooking_advice = run_ai_kds_optimizer([item.model_dump() for item in order.items])
 
-    # 2. Persistăm comanda în baza de date
+    # 2. Validăm produsele și calculăm totalul pe server (C1 fix)
+    total_price = 0.0
+    for item in order.items:
+        db_menu_item = session.get(MenuItem, item.menu_item_id)
+        if not db_menu_item:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Produsul cu ID {item.menu_item_id} nu există"
+            )
+        total_price += db_menu_item.price * item.quantity
+
+    # 3. Persistăm comanda în baza de date
     db_order = Order(
         table_id=table_id,
-        total_price=order.total or 0.0,
+        total_price=total_price,
         special_requests=order.notes,
     )
     session.add(db_order)
-    session.flush()  # obținem db_order.id fără commit
+    session.flush()
 
     for item in order.items:
-        db_item = OrderItem(
+        session.add(OrderItem(
             order_id=db_order.id,
-            menu_item_id=item.menu_item_id or 0,
+            menu_item_id=item.menu_item_id,
             quantity=item.quantity,
-            special_instructions=None,
-        )
-        session.add(db_item)
+        ))
 
     session.commit()
 
-    # Suprascriem table_number cu valoarea de încredere din JWT
     sanitized_order = order.model_dump()
     sanitized_order["table_number"] = table_id
+    sanitized_order["id"] = db_order.id  # M7: order ID în payload WS
 
     payload = {
         "event": "NEW_ORDER",
@@ -99,10 +109,10 @@ async def create_order(
         "data": sanitized_order
     }
     
-    # 3. Notificăm Bucătăria (KDS) în timp real
+    # 4. Notificăm Bucătăria (KDS) în timp real
     await manager.broadcast_to_role("chef", payload)
     
-    # 4. Notificăm și Chelnerul că s-a ocupat o masă 
+    # 5. Notificăm și Chelnerul că s-a ocupat o masă 
     await manager.broadcast_to_role("waiter", {
         "event": "TABLE_OCCUPIED",
         "table": table_id

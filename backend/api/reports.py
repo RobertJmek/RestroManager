@@ -1,7 +1,7 @@
 from datetime import date, datetime, timezone, timedelta
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
 from sqlmodel import Session, select, func
 from sqlalchemy import cast, Date
@@ -36,6 +36,13 @@ class RangeReportRead(BaseModel):
     revenue_by_day: List[RevenueByDay]
 
 
+def _parse_date(d: Optional[str]) -> date:
+    try:
+        return datetime.strptime(d, "%Y-%m-%d").date()
+    except (ValueError, TypeError):
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=f"Format dată invalid: {d}. Folosește YYYY-MM-DD.")
+
+
 @router.get("/range", response_model=RangeReportRead)
 async def get_range_report(
     start_date: Optional[str] = Query(default=None),
@@ -47,22 +54,22 @@ async def get_range_report(
     today = datetime.now(timezone.utc).date()
 
     if start_date:
-        start = datetime.strptime(start_date, "%Y-%m-%d").date()
+        start = _parse_date(start_date)
     else:
         start = today
 
     if end_date:
-        end = datetime.strptime(end_date, "%Y-%m-%d").date()
+        end = _parse_date(end_date)
     else:
         end = today
 
     if start > end:
         start, end = end, start
 
-    start_dt = datetime(start.year, start.month, start.day, tzinfo=timezone.utc)
-    end_dt = datetime(end.year, end.month, end.day, 23, 59, 59, tzinfo=timezone.utc)
+    start_dt = datetime(start.year, start.month, start.day)
+    end_dt = datetime(end.year, end.month, end.day, 23, 59, 59)
 
-    date_range = cast(Order.created_at, Date).between(start, end)
+    date_range = Order.created_at.between(start_dt, end_dt)
 
     # Total revenue
     revenue_stmt = select(func.coalesce(func.sum(Order.total_price), 0)).where(date_range)

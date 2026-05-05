@@ -88,8 +88,8 @@ async def guest_login(table_number: int, session: Session = Depends(get_session)
     table = session.exec(select(Table).where(Table.number == table_number)).first()
     if not table:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Masa {table_number} nu există"
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Masa specificată nu este validă"
         )
 
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
