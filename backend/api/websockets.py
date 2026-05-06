@@ -26,8 +26,7 @@ async def websocket_endpoint(websocket: WebSocket, role: str, token: str = Query
     normalized_role = role.lower()
     jwt_table_id = payload.get("table_id")
 
-    # BUG FIX: use manager.connect() which handles locking correctly
-    # (previously we called websocket.accept() twice and bypassed the lock)
+    # Use manager.connect() which handles accept + lock-safe registration
     await manager.connect(websocket, normalized_role)
     try:
         while True:

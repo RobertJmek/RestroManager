@@ -110,9 +110,10 @@ function WaiterContent() {
     if (!selectedTable) return;
     setIsSendingOrder(true);
     const orderItems = Object.values(cart).map((i: any) => ({
+      menu_item_id: i.id,
       name: i.name,
       quantity: i.quantity,
-      prep_time: i.prep_time || 10,
+      prep_time: i.prep_time_minutes || i.prep_time || 10,
       special_instructions: i.special_instructions || null
     }));
 
@@ -184,7 +185,13 @@ function WaiterContent() {
     const socket = new WebSocket(`${wsUrl}/ws/waiter?token=${encodeURIComponent(token ?? "")}`);
 
     socket.onmessage = async (event) => {
-      const data = JSON.parse(event.data);
+      let data;
+      try {
+        data = JSON.parse(event.data);
+      } catch (e) {
+        console.error("WS: payload invalid", e);
+        return;
+      }
       if (data.event === "FOOD_READY_FOR_PICKUP") {
          const user = getStoredUser();
          if (data.target_waiter_id && data.target_waiter_id !== user.id) {

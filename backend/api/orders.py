@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field
 from typing import List, Optional
 from sqlmodel import Session, select
 
@@ -16,9 +16,6 @@ from models.table import Table, TableStatus
 router = APIRouter(prefix="/orders", tags=["Orders"])
 
 # --- Schemas ---
-
-MAX_NOTES_LENGTH = 500
-
 
 class OrderItemPayload(BaseModel):
     """Un singur produs din comandă."""
@@ -49,6 +46,34 @@ async def process_order_creation_logic(
     source: str = "guest"
 ) -> dict:
     """Helper comun pentru client și chelner pentru a crea/lipi comanda."""
+    # 1. Validăm toate produsele din comandă ÎNAINTE de a crea ceva în DB
+    menu_items_map: dict[int, MenuItem] = {}
+    for item_payload in order.items:
+        menu_item = session.get(MenuItem, item_payload.menu_item_id)
+        if not menu_item:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Produsul cu ID {item_payload.menu_item_id} nu există în meniu"
+            )
+        if not menu_item.is_available:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Produsul '{menu_item.name}' nu este disponibil momentan"
+            )
+        menu_items_map[item_payload.menu_item_id] = menu_item
+
+    # 2. Calculăm totalul SERVER-SIDE (nu ne bazăm pe client)
+    computed_total = sum(
+        menu_items_map[ip.menu_item_id].price * ip.quantity
+        for ip in order.items
+    )
+
+    # 3. Rulăm agenții AI pentru articolele NOI
+    all_instructions = " | ".join(i.special_instructions for i in order.items if i.special_instructions)
+    safety_priority = run_ai_safety_agent(all_instructions)
+    cooking_advice = run_ai_kds_optimizer([item.model_dump() for item in order.items])
+
+    # 4. Creăm sau actualizăm comanda
     active_order = session.exec(
         select(Order)
         .where(Order.table_id == table.id)
@@ -56,56 +81,51 @@ async def process_order_creation_logic(
         .order_by(Order.created_at.desc())
     ).first()
 
-    # 2. Rulăm agenții AI pentru articolele NOI (agregăm toate notele produselor)
-    all_instructions = " | ".join(i.special_instructions for i in order.items if i.special_instructions)
-    safety_priority = run_ai_safety_agent(all_instructions)
-    cooking_advice = run_ai_kds_optimizer([item.model_dump() for item in order.items])
-
     if active_order:
         db_order = active_order
-        db_order.total_price += (order.total or 0.0)
+        db_order.total_price += computed_total
         db_order.status = OrderStatus.pending
     else:
         db_order = Order(
             table_id=table.id,
-            total_price=order.total or 0.0,
+            total_price=computed_total,
             status=OrderStatus.pending,
-            special_requests="", # Am eliminat notița globală
+            special_requests="",
         )
         session.add(db_order)
-    
-    session.commit()
-    session.refresh(db_order)
 
-    # 3. Salvăm produsele noi în OrderItem
-    new_items_responses = []
+    session.flush()
+
+    # 5. Salvăm produsele noi în OrderItem (batch insert, un singur commit)
+    new_items = []
     for item_payload in order.items:
-        menu_item = session.exec(
-            select(MenuItem).where(MenuItem.name == item_payload.name)
-        ).first()
-        if menu_item:
-            order_item = OrderItem(
-                order_id=db_order.id,
-                menu_item_id=menu_item.id,
-                quantity=item_payload.quantity,
-                special_instructions=item_payload.special_instructions,
-            )
-            session.add(order_item)
-            session.commit()
-            session.refresh(order_item)
-            new_items_responses.append({
-                "id": order_item.id,
-                "name": menu_item.name,
-                "quantity": order_item.quantity,
-                "status": order_item.status.value,
-                "special_instructions": order_item.special_instructions
-            })
+        mi = menu_items_map[item_payload.menu_item_id]
+        order_item = OrderItem(
+            order_id=db_order.id,
+            menu_item_id=mi.id,
+            quantity=item_payload.quantity,
+            special_instructions=item_payload.special_instructions,
+        )
+        session.add(order_item)
+        new_items.append((order_item, mi))
 
-    # 4. Actualizăm statusul mesei dacă e liberă
+    # 6. Actualizăm statusul mesei dacă e liberă
     if table.status == TableStatus.free:
         table.status = TableStatus.occupied
         session.add(table)
-        session.commit()
+
+    session.commit()
+
+    new_items_responses = []
+    for order_item, mi in new_items:
+        session.refresh(order_item)
+        new_items_responses.append({
+            "id": order_item.id,
+            "name": mi.name,
+            "quantity": order_item.quantity,
+            "status": order_item.status.value,
+            "special_instructions": order_item.special_instructions
+        })
 
     # 5. Broadcast la Chef cu ID-ul real și DOAR produsele noi
     payload = {
@@ -215,7 +235,11 @@ async def mark_item_ready(item_id: int, session: Session = Depends(get_session))
     session.add(item)
     
     order = session.get(Order, item.order_id)
+    if not order:
+        raise HTTPException(status_code=404, detail="Comanda asociată nu a fost găsită")
     table = session.get(Table, order.table_id)
+    if not table:
+        raise HTTPException(status_code=404, detail="Masa asociată nu a fost găsită")
     session.commit()
     
     waiter_id = table.waiter_id

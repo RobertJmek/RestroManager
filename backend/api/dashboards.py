@@ -3,14 +3,14 @@ from sqlmodel import Session, select
 from typing import List, Optional
 from pydantic import BaseModel
 
-from core.security import require_role
+from core.security import require_role, get_current_guest
 from db.session import get_session
 from core.websocket_manager import manager
 from models.table import Table, TableStatus
 from models.order import Order, OrderStatus
 from models.order_item import OrderItem, OrderItemStatus
 from models.menu_item import MenuItem
-from models.user import User
+from models.user import User, TokenData
 from api.orders import OrderCreatePayload, process_order_creation_logic
 
 router = APIRouter(tags=["Dashboards RBAC"])
@@ -147,6 +147,12 @@ async def claim_table(
     if not table:
         raise HTTPException(status_code=404, detail="Masa nu există")
     
+    if table.waiter_id and table.waiter_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Masa este deja asignată altui chelner"
+        )
+
     table.waiter_id = current_user.id
     session.add(table)
     session.commit()
@@ -188,10 +194,21 @@ async def waiter_create_order(
     return await process_order_creation_logic(session, table, order, source="waiter")
 
 
-@router.post("/tables/{table_id}/request-bill")
-async def request_bill(table_id: int, request: BillRequest, session: Session = Depends(get_session)):
-    """Clientul (sau chelnerul) cere nota de plată."""
-    table = session.get(Table, table_id)
+@router.post("/tables/{table_number}/request-bill")
+async def request_bill(
+    table_number: int,
+    request: BillRequest,
+    guest: TokenData = Depends(get_current_guest),
+    session: Session = Depends(get_session)
+):
+    """Clientul (Guest) cere nota de plată. Autentificare prin guest token."""
+    if guest.table_id != table_number:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Nu poți cere nota pentru altă masă"
+        )
+
+    table = session.exec(select(Table).where(Table.number == table_number)).first()
     if not table:
         raise HTTPException(status_code=404, detail="Masa nu există")
 

@@ -44,7 +44,13 @@ function ChefContent() {
       .replace("/api", "");
     const ws = new WebSocket(`${wsUrl}/ws/chef?token=${encodeURIComponent(token ?? "")}`);
     ws.onmessage = (event) => {
-      const payload = JSON.parse(event.data);
+      let payload;
+      try {
+        payload = JSON.parse(event.data);
+      } catch (e) {
+        console.error("WS: payload invalid", e);
+        return;
+      }
       if (payload.event === "NEW_ORDER") {
         const newOrder: Order = { ...payload.data, ai_metadata: payload.ai_metadata };
         // Append new items if order exists, else prepend new order

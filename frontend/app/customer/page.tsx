@@ -226,14 +226,19 @@ function CustomerContent() {
       }
     } catch (error) {
       console.error("Eroare conexiune:", error);
-      showToast("❌ Nu s-a putut apela chelnerul.", "error");
+      showToast("❌ Nu ne-am putut conecta la server.", "error");
     }
   };
 
   const handleRequestBill = async (method: "cash" | "card") => {
     try {
-      const res = await apiRequest(`/tables/${tableId}/request-bill`, {
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
+      const res = await fetch(`${API_URL}/tables/${tableId}/request-bill`, {
         method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${guestToken}`
+        },
         body: JSON.stringify({ payment_method: method })
       });
       if (res.ok) {
