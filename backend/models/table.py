@@ -7,6 +7,7 @@ class TableStatus(str, Enum):
     occupied = "occupied"
     waiting_for_food = "waiting_for_food"
     bill_requested = "bill_requested"
+    ready = "ready"
 
 class Table(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)

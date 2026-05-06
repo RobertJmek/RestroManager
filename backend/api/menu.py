@@ -1,7 +1,7 @@
 import base64
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
-from sqlmodel import Session, select
+from sqlmodel import Session, select, func
 from typing import List, Optional
 from pydantic import BaseModel, Field
 
@@ -346,8 +346,8 @@ async def delete_category(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Categoria nu a fost găsită")
 
     items_count = session.exec(
-        select(MenuItem).where(MenuItem.category_id == category_id)
-    ).count()
+        select(func.count()).select_from(MenuItem).where(MenuItem.category_id == category_id)
+    ).one()
 
     if items_count > 0:
         raise HTTPException(
