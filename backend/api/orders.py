@@ -238,8 +238,9 @@ async def mark_order_ready(order_id: int, session: Session = Depends(get_session
         
     items = session.exec(select(OrderItem).where(OrderItem.order_id == order_id)).all()
     for item in items:
-        item.status = OrderItemStatus.ready_for_pickup
-        session.add(item)
+        if item.status != OrderItemStatus.served:
+            item.status = OrderItemStatus.ready_for_pickup
+            session.add(item)
         
     order.status = OrderStatus.ready
     table = session.get(Table, order.table_id)

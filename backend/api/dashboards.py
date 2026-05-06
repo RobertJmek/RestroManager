@@ -226,6 +226,11 @@ async def close_table(table_id: int, session: Session = Depends(get_session)):
     for order in orders:
         order.status = OrderStatus.paid
         session.add(order)
+        
+        order_items = session.exec(select(OrderItem).where(OrderItem.order_id == order.id)).all()
+        for oi in order_items:
+            oi.status = OrderItemStatus.served
+            session.add(oi)
 
     # Eliberăm masa și chelnerul
     table.status = TableStatus.free
