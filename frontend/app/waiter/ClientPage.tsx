@@ -20,11 +20,11 @@ type Table = {
 };
 
 const STATUS_CONFIG: Record<TableStatus, { label: string; classes: string }> = {
-  free:               { label: "Liberă",           classes: "bg-white border-slate-200 text-slate-400" },
-  occupied:           { label: "Ocupată",          classes: "bg-orange-100 border-orange-400 text-orange-700" },
-  waiting_for_food:   { label: "Așteaptă mâncare", classes: "bg-yellow-100 border-yellow-400 text-yellow-700" },
-  bill_requested:     { label: "Cere nota",        classes: "bg-purple-100 border-purple-400 text-purple-700" },
-  ready:              { label: "Mâncare Gata!",    classes: "bg-green-100 border-green-500 text-green-700 animate-pulse" },
+  free:               { label: "Liberă",           classes: "bg-slate-800 border-slate-600 text-slate-400" },
+  occupied:           { label: "Ocupată",          classes: "bg-orange-950/40 border-orange-500 text-orange-400" },
+  waiting_for_food:   { label: "Așteaptă mâncare", classes: "bg-yellow-950/40 border-yellow-500 text-yellow-400" },
+  bill_requested:     { label: "Cere nota",        classes: "bg-purple-950/40 border-purple-500 text-purple-400" },
+  ready:              { label: "Mâncare Gata!",    classes: "bg-green-950/40 border-green-500 text-green-400 animate-pulse" },
 };
 
 function WaiterContent() {
@@ -257,7 +257,7 @@ function WaiterContent() {
                     title={table.status !== "free" ? "Click pentru a vedea comanda" : ""}
                   >
                     <span className="text-xs font-bold uppercase">{table.location || "Masa"}</span>
-                    <span className="text-4xl font-black">{table.number}</span>
+                    <span className="text-4xl font-black text-white">{table.number}</span>
                     <span className="text-[10px] mt-1 font-bold uppercase">{cfg.label}</span>
                     
                     {table.status !== "free" && !table.waiter_id && (
@@ -267,7 +267,7 @@ function WaiterContent() {
                     )}
 
                     {table.status !== "free" && table.waiter_id && (
-                      <span className="absolute bottom-2 bg-slate-900/10 text-slate-700 text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 border border-slate-900/20">
+                      <span className="absolute bottom-2 bg-slate-700/50 text-slate-300 text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 border border-slate-600">
                         <span>👨‍🍳</span> {table.waiter_name}
                       </span>
                     )}
@@ -279,8 +279,8 @@ function WaiterContent() {
         </section>
 
         {/* Notificări Live */}
-        <section className="bg-white rounded-3xl p-6 shadow-xl border border-slate-100 h-[600px] flex flex-col">
-          <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
+        <section className="bg-slate-900 rounded-3xl p-6 shadow-xl border border-slate-800 h-[600px] flex flex-col">
+          <h2 className="text-xl font-bold mb-6 flex items-center gap-2 text-slate-100">
             <Bell className="text-orange-500" /> Notificări Live
           </h2>
           <div className="space-y-4 overflow-y-auto flex-1 pr-2">
@@ -288,25 +288,25 @@ function WaiterContent() {
               <div
                 key={n.id}
                 className={`p-4 rounded-xl border-l-4 shadow-sm ${
-                  n.event === "URGENT_CALL" ? "bg-red-50 border-red-500" : 
-                  n.event === "BILL_REQUESTED" ? "bg-purple-50 border-purple-500" :
-                  "bg-blue-50 border-blue-500"
+                  n.event === "URGENT_CALL" ? "bg-red-950/30 border-red-500" : 
+                  n.event === "BILL_REQUESTED" ? "bg-purple-950/30 border-purple-500" :
+                  "bg-blue-950/30 border-blue-500"
                 }`}
               >
                 <div className="flex justify-between items-start">
-                  <p className="font-black text-sm uppercase tracking-wider">
+                  <p className="font-black text-sm uppercase tracking-wider text-slate-200">
                     {n.event === "URGENT_CALL" ? "⚠️ ASISTENȚĂ" : 
                      n.event === "BILL_REQUESTED" ? "💳 NOTĂ DE PLATĂ" : 
                      "🍳 BUCĂTĂRIE"}
                   </p>
-                  <span className="text-[10px] text-slate-400 font-mono">ACUM</span>
+                  <span className="text-[10px] text-slate-500 font-mono">ACUM</span>
                 </div>
-                <p className="text-sm mt-1 text-slate-700 font-medium">{n.message}</p>
+                <p className="text-sm mt-1 text-slate-300 font-medium">{n.message}</p>
                 <p className="text-xs mt-2 font-bold text-slate-500">MASA #{n.table}</p>
               </div>
             ))}
             {notifications.length === 0 && (
-              <div className="text-center py-20 opacity-20 italic">Nicio notificare activă</div>
+              <div className="text-center py-20 text-slate-600 italic">Nicio notificare activă</div>
             )}
           </div>
         </section>
@@ -314,10 +314,10 @@ function WaiterContent() {
 
       {selectedTable && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onClick={() => setSelectedTable(null)}>
-          <div className="bg-white rounded-3xl p-6 w-full max-w-2xl shadow-2xl flex flex-col max-h-[90vh]" onClick={e => e.stopPropagation()}>
+          <div className="bg-slate-900 rounded-3xl p-6 w-full max-w-2xl shadow-2xl flex flex-col max-h-[90vh] border border-slate-800" onClick={e => e.stopPropagation()}>
             <div className="flex justify-between items-center mb-6 shrink-0">
-               <h2 className="text-2xl font-black">{isMenuMode ? `Meniu Masă #${selectedTable.number}` : `Masă #${selectedTable.number}`}</h2>
-               <button onClick={() => { setSelectedTable(null); setIsMenuMode(false); setCart({}); }} className="text-slate-400 hover:text-slate-700 text-xl font-bold">✕</button>
+               <h2 className="text-2xl font-black text-white">{isMenuMode ? `Meniu Masă #${selectedTable.number}` : `Masă #${selectedTable.number}`}</h2>
+               <button onClick={() => { setSelectedTable(null); setIsMenuMode(false); setCart({}); }} className="text-slate-500 hover:text-white text-xl font-bold">✕</button>
             </div>
             
             <div className="overflow-y-auto flex-1 min-h-0 pr-2">
@@ -326,17 +326,17 @@ function WaiterContent() {
                 {/* Group by category */}
                 {Array.from(new Set(menuItems.map(i => i.category))).map(category => (
                   <div key={category as string}>
-                    <h3 className="font-black text-slate-800 uppercase mb-4 text-sm tracking-wider border-b pb-2">{category as string}</h3>
+                    <h3 className="font-black text-slate-200 uppercase mb-4 text-sm tracking-wider border-b border-slate-700 pb-2">{category as string}</h3>
                     <div className="space-y-3">
                       {menuItems.filter(i => i.category === category).map(item => (
-                        <div key={item.id} className="flex justify-between items-center bg-slate-50 p-3 rounded-xl border border-slate-100">
+                        <div key={item.id} className="flex justify-between items-center bg-slate-800 p-3 rounded-xl border border-slate-700">
                           <div>
-                            <p className="font-bold text-slate-800">{item.name}</p>
-                            <p className="text-sm font-bold text-green-600">{item.price} Lei</p>
+                            <p className="font-bold text-slate-100">{item.name}</p>
+                            <p className="text-sm font-bold text-green-400">{item.price} Lei</p>
                           </div>
                           <button 
                             onClick={() => setItemToAdd(item)}
-                            className="bg-blue-100 hover:bg-blue-200 text-blue-700 font-bold px-4 py-2 rounded-full transition-colors text-sm shrink-0"
+                            className="bg-blue-600 hover:bg-blue-500 text-white font-bold px-4 py-2 rounded-full transition-colors text-sm shrink-0"
                           >
                             Adaugă
                           </button>
@@ -348,7 +348,7 @@ function WaiterContent() {
               </div>
             ) : selectedTable.status !== "free" && !selectedTable.waiter_id ? (
               <div className="py-8 flex flex-col items-center">
-                <p className="text-slate-500 font-medium mb-6 text-center">Această masă are nevoie de un chelner asignat.</p>
+                <p className="text-slate-400 font-medium mb-6 text-center">Această masă are nevoie de un chelner asignat.</p>
                 <button 
                   onClick={async () => {
                     await apiRequest(`/waiter/tables/${selectedTable.id}/claim`, { method: "PUT" });
@@ -363,8 +363,8 @@ function WaiterContent() {
             ) : (
               <>
                 {selectedTable.waiter_id && selectedTable.waiter_id !== currentUser.id && (
-                  <div className="bg-yellow-50 border border-yellow-400 p-3 rounded-xl mb-4">
-                    <p className="text-yellow-800 font-bold text-center text-sm">Masă gestionată de {selectedTable.waiter_name}. Acces Read-Only.</p>
+                  <div className="bg-yellow-950/30 border border-yellow-600 p-3 rounded-xl mb-4">
+                    <p className="text-yellow-300 font-bold text-center text-sm">Masă gestionată de {selectedTable.waiter_name}. Acces Read-Only.</p>
                   </div>
                 )}
                 {activeOrder ? (
@@ -372,18 +372,18 @@ function WaiterContent() {
                     {/* Grupa 1: În așteptare */}
                     {activeOrder.items.filter((i: any) => i.status === 'pending').length > 0 && (
                       <div>
-                        <h4 className="text-[10px] font-black text-slate-400 uppercase mb-2 tracking-wider">În așteptare (Bucătărie)</h4>
+                        <h4 className="text-[10px] font-black text-slate-500 uppercase mb-2 tracking-wider">În așteptare (Bucătărie)</h4>
                         <ul className="space-y-2">
                           {activeOrder.items.filter((i: any) => i.status === 'pending').map((item: any) => (
-                             <li key={item.id} className="flex flex-col bg-yellow-50/50 p-3 rounded-lg border border-yellow-100">
+                             <li key={item.id} className="flex flex-col bg-yellow-950/20 p-3 rounded-lg border border-yellow-800/50">
                                 <div className="flex justify-between items-center">
                                   <div>
-                                     <span className="font-bold text-slate-800">{item.name}</span>
-                                     <span className="text-blue-500 font-bold ml-2">x{item.quantity}</span>
+                                     <span className="font-bold text-slate-100">{item.name}</span>
+                                     <span className="text-blue-400 font-bold ml-2">x{item.quantity}</span>
                                   </div>
-                                  <span className="text-[10px] bg-yellow-100 text-yellow-700 px-2 py-1 rounded-full font-bold">În preparare ⏳</span>
+                                  <span className="text-[10px] bg-yellow-900/50 text-yellow-400 px-2 py-1 rounded-full font-bold">În preparare ⏳</span>
                                 </div>
-                                {item.special_instructions && <p className="text-[10px] text-yellow-800 italic mt-1 font-medium bg-yellow-100/50 inline-block self-start px-2 py-0.5 rounded border border-yellow-200">⚠️ {item.special_instructions}</p>}
+                                {item.special_instructions && <p className="text-[10px] text-yellow-300 italic mt-1 font-medium bg-yellow-900/30 inline-block self-start px-2 py-0.5 rounded border border-yellow-800/50">⚠️ {item.special_instructions}</p>}
                              </li>
                           ))}
                         </ul>
@@ -393,14 +393,14 @@ function WaiterContent() {
                     {/* Grupa 2: De dus la masă */}
                     {activeOrder.items.filter((i: any) => i.status === 'ready_for_pickup').length > 0 && (
                       <div>
-                        <h4 className="text-[10px] font-black text-blue-500 uppercase mb-2 tracking-wider">De dus la masă</h4>
+                        <h4 className="text-[10px] font-black text-blue-400 uppercase mb-2 tracking-wider">De dus la masă</h4>
                         <ul className="space-y-2">
                           {activeOrder.items.filter((i: any) => i.status === 'ready_for_pickup').map((item: any) => (
-                             <li key={item.id} className="flex flex-col bg-blue-50 p-3 rounded-lg border border-blue-200 shadow-sm">
+                             <li key={item.id} className="flex flex-col bg-blue-950/20 p-3 rounded-lg border border-blue-800/50 shadow-sm">
                                 <div className="flex justify-between items-center">
                                   <div>
-                                     <span className="font-bold text-slate-800">{item.name}</span>
-                                     <span className="text-blue-600 font-bold ml-2">x{item.quantity}</span>
+                                     <span className="font-bold text-slate-100">{item.name}</span>
+                                     <span className="text-blue-400 font-bold ml-2">x{item.quantity}</span>
                                   </div>
                                   {selectedTable.waiter_id === currentUser.id ? (
                                     <button 
@@ -413,10 +413,10 @@ function WaiterContent() {
                                        Am servit 🍽️
                                     </button>
                                   ) : (
-                                    <span className="text-[10px] bg-green-100 text-green-700 px-2 py-1 rounded-full font-bold">Gata de preluat</span>
+                                    <span className="text-[10px] bg-green-900/50 text-green-400 px-2 py-1 rounded-full font-bold">Gata de preluat</span>
                                   )}
                                 </div>
-                                {item.special_instructions && <p className="text-[10px] text-blue-800 italic mt-1 font-medium bg-blue-100/50 inline-block self-start px-2 py-0.5 rounded border border-blue-200">⚠️ {item.special_instructions}</p>}
+                                {item.special_instructions && <p className="text-[10px] text-blue-300 italic mt-1 font-medium bg-blue-900/30 inline-block self-start px-2 py-0.5 rounded border border-blue-800/50">⚠️ {item.special_instructions}</p>}
                              </li>
                           ))}
                         </ul>
@@ -426,18 +426,18 @@ function WaiterContent() {
                     {/* Grupa 3: Servite */}
                     {activeOrder.items.filter((i: any) => i.status === 'served').length > 0 && (
                       <div>
-                        <h4 className="text-[10px] font-black text-green-600 uppercase mb-2 tracking-wider">Servite pe masă</h4>
+                        <h4 className="text-[10px] font-black text-green-500 uppercase mb-2 tracking-wider">Servite pe masă</h4>
                         <ul className="space-y-2">
                           {activeOrder.items.filter((i: any) => i.status === 'served').map((item: any) => (
-                             <li key={item.id} className="flex flex-col bg-slate-50 p-3 rounded-lg border border-slate-100 opacity-60">
+                             <li key={item.id} className="flex flex-col bg-slate-800/50 p-3 rounded-lg border border-slate-700 opacity-60">
                                 <div className="flex justify-between items-center">
                                   <div>
-                                     <span className="font-bold text-slate-800">{item.name}</span>
+                                     <span className="font-bold text-slate-300">{item.name}</span>
                                      <span className="text-slate-500 font-bold ml-2">x{item.quantity}</span>
                                   </div>
-                                  <span className="text-[10px] text-green-600 font-bold flex items-center"><CheckCircle2 className="w-3 h-3 mr-1" /> Servit</span>
+                                  <span className="text-[10px] text-green-400 font-bold flex items-center"><CheckCircle2 className="w-3 h-3 mr-1" /> Servit</span>
                                 </div>
-                                {item.special_instructions && <p className="text-[10px] text-slate-500 italic mt-1 font-medium bg-slate-200/50 inline-block self-start px-2 py-0.5 rounded border border-slate-200">⚠️ {item.special_instructions}</p>}
+                                {item.special_instructions && <p className="text-[10px] text-slate-400 italic mt-1 font-medium bg-slate-700/50 inline-block self-start px-2 py-0.5 rounded border border-slate-600">⚠️ {item.special_instructions}</p>}
                              </li>
                           ))}
                         </ul>
@@ -464,7 +464,7 @@ function WaiterContent() {
                         setTables(prev => prev.map(t => t.id === selectedTable.id ? { ...t, status: "free", waiter_id: null, waiter_name: null } : t));
                         setSelectedTable(null);
                       }} 
-                      className="w-full py-4 rounded-xl bg-red-100 text-red-700 font-bold hover:bg-red-200 transition-colors border border-red-200"
+                      className="w-full py-4 rounded-xl bg-red-950/30 text-red-400 font-bold hover:bg-red-950/50 transition-colors border border-red-800"
                     >
                       Închide Masa
                     </button>
@@ -476,22 +476,22 @@ function WaiterContent() {
 
             {/* Cart sticky bar outside the scroll area but inside the modal */}
             {isMenuMode && Object.keys(cart).length > 0 && (
-              <div className="mt-6 pt-6 border-t border-slate-100 shrink-0">
-                <div className="max-h-[30vh] overflow-y-auto mb-4 bg-slate-50 rounded-xl p-2 border border-slate-200">
+              <div className="mt-6 pt-6 border-t border-slate-700 shrink-0">
+                <div className="max-h-[30vh] overflow-y-auto mb-4 bg-slate-800 rounded-xl p-2 border border-slate-700">
                   <h4 className="text-xs font-black text-slate-400 uppercase mb-2 px-2">Comanda curentă</h4>
                   {Object.values(cart).map((cItem: any) => (
-                    <div key={cItem.cartKey} className="flex justify-between items-center py-2 px-2 border-b border-slate-200 last:border-0">
+                    <div key={cItem.cartKey} className="flex justify-between items-center py-2 px-2 border-b border-slate-700 last:border-0">
                       <div className="flex-1">
-                        <p className="font-bold text-sm text-slate-800">{cItem.name} <span className="text-blue-600">x{cItem.quantity}</span></p>
-                        {cItem.special_instructions && <p className="text-xs text-slate-500 italic flex items-center gap-1"><span>⚠️</span> Note: {cItem.special_instructions}</p>}
+                        <p className="font-bold text-sm text-white">{cItem.name} <span className="text-blue-400">x{cItem.quantity}</span></p>
+                        {cItem.special_instructions && <p className="text-xs text-slate-400 italic flex items-center gap-1"><span>⚠️</span> Note: {cItem.special_instructions}</p>}
                       </div>
-                      <button onClick={() => removeFromCart(cItem.cartKey)} className="text-red-500 font-bold text-xl px-2 shrink-0">&times;</button>
+                      <button onClick={() => removeFromCart(cItem.cartKey)} className="text-red-400 font-bold text-xl px-2 shrink-0">&times;</button>
                     </div>
                   ))}
                 </div>
                 <div className="flex justify-between items-end mb-4">
-                  <span className="font-bold text-slate-500 uppercase tracking-wider text-xs">Total Comandă</span>
-                  <span className="text-3xl font-black text-slate-800">{cartTotal.toFixed(2)} Lei</span>
+                  <span className="font-bold text-slate-400 uppercase tracking-wider text-xs">Total Comandă</span>
+                  <span className="text-3xl font-black text-white">{cartTotal.toFixed(2)} Lei</span>
                 </div>
                 <button
                   onClick={sendWaiterOrder}
@@ -509,17 +509,17 @@ function WaiterContent() {
       {/* Item Modal pentru instrucțiuni speciale */}
       {itemToAdd && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[60] p-4" onClick={() => setItemToAdd(null)}>
-          <div className="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl flex flex-col" onClick={e => e.stopPropagation()}>
-            <h3 className="text-2xl font-black mb-2">{itemToAdd.name}</h3>
-            <p className="text-sm font-bold text-green-600 mb-6">{itemToAdd.price} Lei</p>
+          <div className="bg-slate-900 rounded-3xl p-6 w-full max-w-sm shadow-2xl flex flex-col border border-slate-800" onClick={e => e.stopPropagation()}>
+            <h3 className="text-2xl font-black text-white mb-2">{itemToAdd.name}</h3>
+            <p className="text-sm font-bold text-green-400 mb-6">{itemToAdd.price} Lei</p>
             <textarea
               placeholder="Mențiuni speciale (opțional)..."
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl p-4 min-h-[100px] mb-6 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full bg-slate-800 border border-slate-700 rounded-xl p-4 min-h-[100px] mb-6 text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
               value={specialInstructions}
               onChange={e => setSpecialInstructions(e.target.value)}
             />
             <div className="flex gap-3">
-              <button onClick={() => setItemToAdd(null)} className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl transition-colors">Anulează</button>
+              <button onClick={() => setItemToAdd(null)} className="flex-1 py-3 bg-slate-700 hover:bg-slate-600 text-slate-200 font-bold rounded-xl transition-colors">Anulează</button>
               <button onClick={confirmAddToCart} className="flex-1 py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl shadow-lg transition-colors">Confirmă</button>
             </div>
           </div>
