@@ -173,7 +173,27 @@ async def upload_image(
         )
 
     contents = await file.read()
-    
+
+    # Magic byte validation (H4 fix) — prevent Content-Type spoofing
+    magic_bytes = {
+        b'\xff\xd8\xff': "jpeg",
+        b'\x89PNG\r\n\x1a\n': "png",
+        b'RIFF': "webp",
+        b'GIF8': "gif",
+    }
+    valid = False
+    for magic, fmt in magic_bytes.items():
+        if contents[:len(magic)] == magic:
+            if fmt == "webp" and file.content_type != "image/webp":
+                continue  # RIFF is also used by other formats — verify WebP signature deeper
+            valid = True
+            break
+    if not valid:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Fișier invalid: semnătura nu corespunde tipului declarat"
+        )
+
     # Validate upload size limit (10MB)
     if len(contents) > 10_000_000:
         raise HTTPException(

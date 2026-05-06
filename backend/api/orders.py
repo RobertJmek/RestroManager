@@ -22,7 +22,7 @@ MAX_NOTES_LENGTH = 500
 
 class OrderItemPayload(BaseModel):
     """Un singur produs din comandă."""
-    menu_item_id: Optional[int] = Field(default=None, ge=1)
+    menu_item_id: int = Field(ge=1)
     name: str = Field(min_length=1, max_length=200)
     quantity: int = Field(ge=1, le=99)
     prep_time: int = Field(ge=0, le=120)

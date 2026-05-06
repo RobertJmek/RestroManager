@@ -217,14 +217,12 @@ function WaiterContent() {
   }, [updateTableStatus, fetchTables]);
 
   return (
-    <div className="min-h-screen bg-slate-50 p-6 md:p-10">
+    <div className="min-h-screen bg-slate-950 p-6 md:p-10 text-slate-100">
       <header className="flex justify-between items-center mb-10">
-        <h1 className="text-3xl font-black text-blue-900 tracking-tight italic">WAITER DASHBOARD</h1>
+        <h1 className="text-3xl font-black text-blue-400 tracking-tight italic">WAITER DASHBOARD</h1>
         <div className="flex items-center gap-4">
           <UserProfileMenu />
-          <span className="flex items-center gap-1 text-xs font-bold bg-green-100 text-green-700 px-3 py-1 rounded-full border border-green-200">
-            ● SERVER ONLINE
-          </span>
+          <span className="flex items-center gap-1 text-xs font-bold bg-green-900/50 text-green-400 px-3 py-1 rounded-full border border-green-700">● SERVER ONLINE</span>
         </div>
       </header>
 
@@ -526,7 +524,7 @@ function WaiterContent() {
 
 export default function WaiterPage() {
   return (
-    <ClientRoleGuard role="Waiter" theme="light" spinnerColor="border-blue-500">
+    <ClientRoleGuard role="Waiter" theme="dark" spinnerColor="border-blue-500">
       <WaiterContent />
     </ClientRoleGuard>
   );

@@ -1,6 +1,6 @@
-'use client'; // OBLIGATORIU pentru a folosi useSearchParams
+'use client';
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { CheckCircle2, ArrowLeft } from "lucide-react";
 import Link from 'next/link';
@@ -8,8 +8,42 @@ import { useSearchParams } from 'next/navigation';
 
 function SuccessContent() {
   const searchParams = useSearchParams();
-  // Încercăm să luăm table_id din URL, dacă nu există, punem "1" ca fallback
   const tableId = searchParams.get('table_id') || '1';
+
+  useEffect(() => {
+    // 1. Luăm datele necesare din localStorage
+    const token = localStorage.getItem('token'); // Presupunem că token-ul JWT este salvat aici
+    const cartData = localStorage.getItem('cart'); // Luăm produsele din coș pentru a le trimite la bucătărie
+
+    if (token && cartData) {
+      const cartItems = JSON.parse(cartData);
+
+      // 2. Conectare la WebSocket pentru a trimite notificarea "NEW_ORDER"
+      // Folosim rolul 'guest' conform rutei din backend
+      const socket = new WebSocket(`${process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8000'}/ws/guest?token=${token}`);
+
+      socket.onopen = () => {
+        console.log("Conexiune WS stabilită - Trimitem comanda la bucătărie...");
+        
+        // Trimitem acțiunea definită în backend/api/websockets.py
+        socket.send(JSON.stringify({
+          action: "NEW_ORDER",
+          order_items: cartItems
+        }));
+
+        // 3. După ce am trimis semnalul, golim coșul local
+        // (Așteptăm puțin pentru a fi siguri că s-a trimis, apoi închidem)
+        setTimeout(() => {
+          localStorage.removeItem('cart');
+          socket.close();
+        }, 1000);
+      };
+
+      socket.onerror = (error) => {
+        console.error("Eroare WebSocket la notificarea comenzii:", error);
+      };
+    }
+  }, []);
 
   return (
     <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-4 text-slate-100 font-sans">
@@ -30,7 +64,6 @@ function SuccessContent() {
           <p className="text-sm font-medium text-slate-300">Stare comandă: <span className="text-emerald-400 font-bold ml-1">În pregătire 👨‍🍳</span></p>
         </div>
 
-        {/* Am modificat href-ul pentru a include table_id */}
         <Link href={`/customer?table_id=${tableId}`} className="w-full">
           <Button className="w-full bg-slate-800 hover:bg-slate-700 text-white rounded-xl py-6 font-semibold flex items-center justify-center gap-2">
             <ArrowLeft size={18} /> Înapoi la Meniu

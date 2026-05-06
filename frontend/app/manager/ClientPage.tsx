@@ -83,10 +83,18 @@ export default function ManagerPage() {
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
 
-  const [reportStart, setReportStart] = useState(new Date().toISOString().slice(0, 10));
-  const [reportEnd, setReportEnd] = useState(new Date().toISOString().slice(0, 10));
+  const localDate = () => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  };
+
+  const [reportStart, setReportStart] = useState(localDate());
+  const [reportEnd, setReportEnd] = useState(localDate());
   const [reportData, setReportData] = useState<any>(null);
   const [reportLoading, setReportLoading] = useState(false);
+
+  // Separate today report for Products tab cards (M5)
+  const [todayReport, setTodayReport] = useState<any>(null);
 
   const showToast = useCallback((message: string, type: "success" | "error" = "success") => {
     setToast({ message, type, visible: true });
@@ -322,6 +330,16 @@ export default function ManagerPage() {
     }
   }
 
+  const fetchTodayReport = useCallback(async () => {
+    try {
+      const t = localDate();
+      const res = await apiRequest(`/reports/range?start_date=${t}&end_date=${t}`);
+      if (res.ok) setTodayReport(await res.json());
+    } catch { /* silent */ }
+  }, []);
+
+  useEffect(() => { fetchTodayReport(); }, [fetchTodayReport]);
+
   const fetchReport = useCallback(async (start: string, end: string) => {
     setReportLoading(true);
     try {
@@ -329,11 +347,12 @@ export default function ManagerPage() {
       if (!res.ok) throw new Error("Eroare la încărcarea raportului");
       setReportData(await res.json());
     } catch {
-      // ignore — report is optional
+      setReportData(null);
+      showToast("Nu s-a putut încărca raportul", "error");
     } finally {
       setReportLoading(false);
     }
-  }, []);
+  }, [showToast]);
 
   useEffect(() => {
     fetchReport(reportStart, reportEnd);
@@ -550,9 +569,9 @@ export default function ManagerPage() {
           <div className="flex justify-between items-center">
             <h2 className="text-2xl font-bold text-white">Rapoarte</h2>
             <div className="flex gap-2">
-              <button onClick={() => { const d = new Date(); setReportStart(d.toISOString().slice(0,10)); setReportEnd(d.toISOString().slice(0,10)); }} className="px-3 py-1 rounded text-xs font-semibold bg-slate-800 text-slate-400 hover:bg-slate-700">Azi</button>
-              <button onClick={() => { const e = new Date(); const s = new Date(); s.setDate(e.getDate()-7); setReportStart(s.toISOString().slice(0,10)); setReportEnd(e.toISOString().slice(0,10)); }} className="px-3 py-1 rounded text-xs font-semibold bg-slate-800 text-slate-400 hover:bg-slate-700">7 zile</button>
-              <button onClick={() => { const e = new Date(); const s = new Date(); s.setDate(e.getDate()-30); setReportStart(s.toISOString().slice(0,10)); setReportEnd(e.toISOString().slice(0,10)); }} className="px-3 py-1 rounded text-xs font-semibold bg-slate-800 text-slate-400 hover:bg-slate-700">30 zile</button>
+              <button onClick={() => { const t = localDate(); setReportStart(t); setReportEnd(t); }} className="px-3 py-1 rounded text-xs font-semibold bg-slate-800 text-slate-400 hover:bg-slate-700">Azi</button>
+              <button onClick={() => { const e = localDate(); const s = new Date(); s.setDate(s.getDate()-7); setReportStart(`${s.getFullYear()}-${String(s.getMonth()+1).padStart(2,'0')}-${String(s.getDate()).padStart(2,'0')}`); setReportEnd(e); }} className="px-3 py-1 rounded text-xs font-semibold bg-slate-800 text-slate-400 hover:bg-slate-700">7 zile</button>
+              <button onClick={() => { const e = localDate(); const s = new Date(); s.setDate(s.getDate()-30); setReportStart(`${s.getFullYear()}-${String(s.getMonth()+1).padStart(2,'0')}-${String(s.getDate()).padStart(2,'0')}`); setReportEnd(e); }} className="px-3 py-1 rounded text-xs font-semibold bg-slate-800 text-slate-400 hover:bg-slate-700">30 zile</button>
             </div>
           </div>
           <div className="flex items-center gap-3 text-sm text-slate-400">
