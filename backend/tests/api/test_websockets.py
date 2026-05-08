@@ -3,16 +3,16 @@ from starlette.websockets import WebSocketDisconnect
 from core.security import create_access_token
 
 def test_websocket_auth_failure_invalid_token(client):
-    with pytest.raises(WebSocketDisconnect) as exc:
-        with client.websocket_connect("/ws/waiter?token=invalid_token"):
-            pass
+    with client.websocket_connect("/ws/waiter?token=invalid_token") as websocket:
+        with pytest.raises(WebSocketDisconnect) as exc:
+            websocket.receive_text()
     assert exc.value.code == 4001
 
 def test_websocket_auth_failure_wrong_role(client):
     token = create_access_token(data={"role": "Chef"})
-    with pytest.raises(WebSocketDisconnect) as exc:
-        with client.websocket_connect(f"/ws/waiter?token={token}"):
-            pass
+    with client.websocket_connect(f"/ws/waiter?token={token}") as websocket:
+        with pytest.raises(WebSocketDisconnect) as exc:
+            websocket.receive_text()
     assert exc.value.code == 4001
 
 def test_websocket_success_and_send_message(client):

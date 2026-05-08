@@ -10,6 +10,8 @@ WS_CLOSE_AUTH_FAILURE = 4001
 
 @router.websocket("/ws/{role}")
 async def websocket_endpoint(websocket: WebSocket, role: str, token: str = Query(...)):
+    await websocket.accept()
+
     # 1. Validare JWT (Securitate conform Epic)
     try:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])

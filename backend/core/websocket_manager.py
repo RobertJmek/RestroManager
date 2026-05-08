@@ -2,6 +2,7 @@ import asyncio
 import json
 from typing import Dict, List
 from fastapi import WebSocket
+from starlette.websockets import WebSocketState
 
 class ConnectionManager:
     def __init__(self):
@@ -10,7 +11,9 @@ class ConnectionManager:
         self._lock = asyncio.Lock()
 
     async def connect(self, websocket: WebSocket, role: str):
-        await websocket.accept()
+        state = getattr(websocket, "application_state", WebSocketState.CONNECTING)
+        if state == WebSocketState.CONNECTING:
+            await websocket.accept()
         async with self._lock:
             if role not in self.active_connections:
                 self.active_connections[role] = []
