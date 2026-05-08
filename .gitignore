@@ -11,6 +11,7 @@ __pycache__/
 .pytest_cache/
 .coverage
 htmlcov/
+*.db
 
 # Node / Next.js
 node_modules/
