@@ -10,7 +10,9 @@ WS_CLOSE_AUTH_FAILURE = 4001
 
 @router.websocket("/ws/{role}")
 async def websocket_endpoint(websocket: WebSocket, role: str, token: str = Query(...)):
-    # 1. Validare JWT (Securitate conform Epic)
+    await websocket.accept()
+
+    # 1. Validate JWT and role
     try:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
         token_role: str = payload.get("role", "")
@@ -26,8 +28,8 @@ async def websocket_endpoint(websocket: WebSocket, role: str, token: str = Query
     normalized_role = role.lower()
     jwt_table_id = payload.get("table_id")
 
-    # Use manager.connect() which handles accept + lock-safe registration
-    await manager.connect(websocket, normalized_role)
+    # Connection is already accepted above; only register it after auth passes.
+    await manager.register(websocket, normalized_role)
     try:
         while True:
             data = await websocket.receive_json()

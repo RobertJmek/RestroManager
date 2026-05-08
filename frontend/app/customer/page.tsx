@@ -31,7 +31,6 @@ interface MenuItem {
 import { useSearchParams } from 'next/navigation';
 import { Suspense } from 'react';
 import UserProfileMenu from "../../components/ui/UserProfileMenu";
-import { apiRequest } from "@/lib/api";
 
 function CustomerContent() {
   const [selectedItem, setSelectedItem] = useState<MenuItem | null>(null);
