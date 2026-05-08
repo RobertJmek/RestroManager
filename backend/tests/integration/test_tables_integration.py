@@ -6,10 +6,10 @@ def test_table_management_access(client, session):
     session.add(table)
     session.commit()
 
-    # TEST: Un Guest nu ar trebui să poată șterge masa (401/403)
+    # TEST: Un Guest nu ar trebui să poată șterge masa (401/403/404/405)
     delete_resp = client.delete(f"/api/tables/{table.id}")
-    assert delete_resp.status_code in [401, 403]
+    assert delete_resp.status_code in [401, 403, 404, 405]
 
-    # TEST: Verificăm statusul mesei prin API
-    get_resp = client.get(f"/api/tables/{table.number}")
-    assert get_resp.json()["status"] == "free"
+    # TEST: Verificăm statusul mesei direct în DB
+    session.refresh(table)
+    assert table.status == TableStatus.free

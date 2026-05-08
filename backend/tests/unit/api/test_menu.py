@@ -73,7 +73,8 @@ def test_create_menu_item(auth_client, mock_db_session):
 
 def test_delete_category_with_items(auth_client, mock_db_session):
     mock_db_session.get.return_value = Category(id=1, name="Food")
-    # Simulate that there are items in this category
+    # Simulate COUNT query returning 1 item in this category
+    mock_db_session.exec.return_value.one.return_value = 1
     mock_db_session.exec.return_value.all.return_value = [MenuItem(id=1, name="Burger", price=10.0, category_id=1)]
     
     response = auth_client.delete("/api/categories/1")

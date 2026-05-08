@@ -1,9 +1,10 @@
 import pytest
+from unittest.mock import MagicMock
 from sqlmodel import SQLModel, Session, create_engine
 from fastapi.testclient import TestClient
 from main import app
 from db.session import get_session
-from core.security import get_current_guest # Importăm dependența de securitate
+from core.security import get_current_guest
 from models.user import TokenData
 
 # Baza de date de test (SQLite)
@@ -34,3 +35,12 @@ def client_fixture(session: Session):
     
     # Curățăm după test
     app.dependency_overrides.clear()
+
+
+@pytest.fixture
+def mock_db_session():
+    """Mock SQLModel session for unit tests — no real DB hit."""
+    mock = MagicMock(spec=Session)
+    app.dependency_overrides[get_session] = lambda: mock
+    yield mock
+    app.dependency_overrides.pop(get_session, None)

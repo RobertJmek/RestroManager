@@ -1,8 +1,14 @@
+from models.category import Category
+from models.table import Table, TableStatus
+from models.menu_item import MenuItem
+
+
 def test_complete_customer_journey(client, session):
     # 1. SETUP: Masă, Categorie, Produs
+    # conftest mock_get_current_guest returns table_id=1 → table number must be 1
     cat = Category(name="Băuturi")
     session.add(cat)
-    table = Table(number=5, capacity=2, status=TableStatus.free)
+    table = Table(number=1, capacity=2, status=TableStatus.free)
     session.add(table)
     item = MenuItem(name="Limonadă", price=15.0, category_id=1, is_available=True)
     session.add(item)
