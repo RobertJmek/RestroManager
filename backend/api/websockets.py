@@ -28,8 +28,8 @@ async def websocket_endpoint(websocket: WebSocket, role: str, token: str = Query
     normalized_role = role.lower()
     jwt_table_id = payload.get("table_id")
 
-    # Use manager.connect() which handles accept + lock-safe registration
-    await manager.connect(websocket, normalized_role)
+    # Connection is already accepted above; only register it after auth passes.
+    await manager.register(websocket, normalized_role)
     try:
         while True:
             data = await websocket.receive_json()
