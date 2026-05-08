@@ -45,6 +45,22 @@ jobs:
       - name: Run integration tests
         run: python -m pytest tests/integration/ -v --tb=short
 
+      - name: Run coverage report
+        run: |
+          python -m pytest tests/ \
+            --cov=. \
+            --cov-report=term-missing \
+            --cov-report=html:coverage-report \
+            --tb=no -q
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: backend/coverage-report/
+          retention-days: 14
+
   # ─────────────────────────────────────────────
   # JOB 2: Frontend — Next.js Build Check
   # ─────────────────────────────────────────────
