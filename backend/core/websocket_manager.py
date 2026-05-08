@@ -9,13 +9,16 @@ class ConnectionManager:
         self.active_connections: Dict[str, List[WebSocket]] = {}
         self._lock = asyncio.Lock()
 
-    async def connect(self, websocket: WebSocket, role: str):
-        await websocket.accept()
+    async def register(self, websocket: WebSocket, role: str):
         async with self._lock:
             if role not in self.active_connections:
                 self.active_connections[role] = []
             self.active_connections[role].append(websocket)
         print(f"[WS] Noua conexiune acceptata. Rol: {role}")
+
+    async def connect(self, websocket: WebSocket, role: str):
+        await websocket.accept()
+        await self.register(websocket, role)
 
     async def disconnect(self, websocket: WebSocket, role: str):
         async with self._lock:
