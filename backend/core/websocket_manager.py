@@ -11,7 +11,9 @@ class ConnectionManager:
         self._lock = asyncio.Lock()
 
     async def connect(self, websocket: WebSocket, role: str):
-        state = getattr(websocket, "client_state", WebSocketState.CONNECTING)
+        state = getattr(websocket, "application_state", None)
+        if state is None:
+            state = getattr(websocket, "client_state", WebSocketState.CONNECTING)
         if state == WebSocketState.CONNECTING:
             await websocket.accept()
         async with self._lock:
