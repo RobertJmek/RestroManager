@@ -41,49 +41,118 @@ To ensure a highly responsive, real-time experience while maintaining a clean an
 
 ---
 
-## 📐 System Architecture
+## 📐 Arhitectura Sistemului (Component Diagram)
 
-The system decouples the client-facing interfaces from the backend logic. Standard requests (like fetching the menu or processing payments) use REST API endpoints, while time-sensitive events (like calling a waiter or kitchen notifications) utilize WebSockets for instantaneous updates.
+RestroManager folosește o **arhitectură decuplată pe 3 straturi**: un frontend Next.js cu vizualizări per rol, un backend FastAPI modular (routere REST + WebSocket real-time), și o bază de date PostgreSQL accesată prin SQLModel ORM. Cererile standard (meniu, comenzi, rapoarte) folosesc **REST API**, iar evenimentele sensibile la timp (notificări bucătărie, apel chelner, status masă) trec prin **WebSocket** pentru actualizări instantanee. Securitatea este asigurată prin **JWT Role-Based Auth** (Guest, Waiter, Chef, Manager), iar doi **agenți AI** analizează fiecare comandă pentru prioritizare și detecție de alergeni.
 
 ```mermaid
 flowchart TB
-    subgraph Frontend [Frontend - Next.js & Tailwind]
-        direction LR
-        C[📱 Customer App]
-        W[🏃 Waiter App]
-        K[👨‍🍳 Chef KDS]
-        M[👔 Manager Dashboard]
+    subgraph FE ["🖥️ Frontend — Next.js 16 + React 19 + Tailwind CSS 4"]
+        direction TB
+
+        subgraph Views ["Vizualizări per Rol"]
+            direction LR
+            V_CUST["📱 Customer\n/customer · /menu"]
+            V_WAIT["🏃 Waiter POS\n/waiter"]
+            V_CHEF["👨‍🍳 Chef KDS\n/chef"]
+            V_MGR["👔 Manager\n/manager"]
+        end
+
+        subgraph Shared ["Module Comune"]
+            direction LR
+            API_LIB["lib/api.ts\nHTTP + JWT auto-logout"]
+            GUARD["ClientRoleGuard\nProtecție rute per rol"]
+            WS_CLIENT["WebSocket Client\nConexiune per rol"]
+        end
+
+        Views --> Shared
     end
 
-    subgraph Backend [Backend - FastAPI Python]
-        API[⚙️ REST API Routes]
-        WS[⚡ WebSocket Manager]
+    subgraph BE ["⚙️ Backend — FastAPI (Python 3.12)"]
+        direction TB
+
+        subgraph Routers ["API Routers  (/api/*)"]
+            direction LR
+            R_AUTH["🔐 Auth\nLogin · Signup · Guest"]
+            R_ORD["📋 Orders\nCRUD · Status · Items"]
+            R_MENU["🍕 Menu\nCRUD · Categorii · Imagini"]
+            R_DASH["📊 Dashboards\nWaiter · Chef · Tables"]
+            R_REP["📈 Reports\nRange · Revenue · Top Items"]
+            R_USR["👤 Users\nProfil · Parolă"]
+        end
+
+        subgraph Core ["Core Services"]
+            direction LR
+            SEC["🔑 Security\nJWT HS256 · bcrypt\nOAuth2 · RBAC"]
+            AI["🤖 AI Agents\nKDS Optimizer\nSafety & Allergy"]
+            WSM["⚡ WebSocket\nManager\nBroadcast per rol"]
+            IMG["🖼️ Image\nProcessing\nValidare · Base64"]
+        end
+
+        subgraph WS_EP ["WebSocket Endpoints  (/ws/*)"]
+            direction LR
+            WS_G["/ws/guest"]
+            WS_W["/ws/waiter"]
+            WS_C["/ws/chef"]
+        end
+
+        subgraph Models ["SQLModel ORM"]
+            direction LR
+            M_USR["User"] 
+            M_TBL["Table"]
+            M_CAT["Category"]
+            M_MI["MenuItem"]
+            M_ORD["Order"]
+            M_OI["OrderItem"]
+        end
+
+        Routers --> Core
+        Routers --> Models
+        WS_EP --> WSM
+        R_ORD --> AI
     end
 
-    subgraph Database [Database]
-        DB[(🐘 PostgreSQL via SQLModel)]
+    subgraph DB ["🐘 PostgreSQL (Supabase)"]
+        PG[("6 tabele:\nuser · table · category\nmenu_item · order · order_item")]
     end
 
-    subgraph External [External Services]
-        S[💳 Stripe API - Payments]
+    subgraph EXT ["🌐 Servicii Externe"]
+        STRIPE["💳 Stripe API\nPlăți online"]
     end
 
-    %% REST HTTP Relations (Solid lines)
-    C -->|HTTP GET/POST| API
-    W -->|HTTP GET/POST| API
-    K -->|HTTP GET/POST| API
-    M -->|HTTP GET/POST| API
+    %% Frontend → Backend (REST)
+    API_LIB -->|"REST  HTTP/JSON"| Routers
+    GUARD -->|"Validare token JWT"| SEC
 
-    %% WebSockets Relations (Dotted lines for Real-time)
-    C -.->|WebSockets| WS
-    W -.->|WebSockets| WS
-    K -.->|WebSockets| WS
+    %% Frontend → Backend (WebSocket)
+    WS_CLIENT -.->|"WS  /ws/guest"| WS_G
+    WS_CLIENT -.->|"WS  /ws/waiter"| WS_W
+    WS_CLIENT -.->|"WS  /ws/chef"| WS_C
 
-    %% Internal Connections
-    API <-->|Queries/Transactions| DB
-    WS <-->|Status Notifications| DB
-    API <-->|Generate Checkout Session| S
+    %% Backend → DB
+    Models <-->|"SQLModel Queries"| PG
+
+    %% Backend → External
+    R_ORD -->|"Checkout Session"| STRIPE
+
+    %% WebSocket broadcasts back to frontend
+    WSM -.->|"NEW_ORDER · FOOD_READY\nCALL_WAITER · BILL_REQ"| WS_CLIENT
+
+    %% Styling
+    classDef feBox fill:#1e293b,stroke:#3b82f6,color:#e2e8f0
+    classDef beBox fill:#1e293b,stroke:#f97316,color:#e2e8f0
+    classDef dbBox fill:#1e293b,stroke:#22c55e,color:#e2e8f0
+    classDef extBox fill:#1e293b,stroke:#a855f7,color:#e2e8f0
+
+    class FE feBox
+    class BE beBox
+    class DB dbBox
+    class EXT extBox
 ```
+
+**Cum funcționează fluxul:** Fiecare rol (Customer, Waiter, Chef, Manager) accesează o vizualizare dedicată în frontend-ul Next.js. Toate cererile HTTP trec prin modulul centralizat `lib/api.ts` care injectează automat token-ul JWT și gestionează expirarea sesiunii. Routerele FastAPI procesează logica de business, validează permisiunile prin middleware-ul RBAC, și accesează baza de date prin modelele SQLModel.
+
+**Comunicarea real-time:** La plasarea unei comenzi, doi agenți AI (KDS Optimizer și Safety Agent) analizează comanda, apoi WebSocket Manager-ul broadcast-ează evenimentul `NEW_ORDER` către Chef KDS. Când bucătarul marchează un preparat ca „Gata", evenimentul `FOOD_READY_FOR_PICKUP` ajunge instant la chelnerul asignat. Clientul poate de asemenea trimite `CALL_WAITER` sau `BILL_REQUESTED` prin canalul WebSocket dedicat.
 
 ## 🗄️ Database Schema
 
@@ -157,7 +226,172 @@ erDiagram
     MenuItem ||--o{ OrderItem : "is included in"
 ```
 
-## 🚀 Quick Start (Local Development)
+## � Fluxul unei Comenzi (Sequence Diagram)
+
+Diagrama de mai jos ilustrează ciclul complet al unei comenzi — de la scanarea codului QR de către client, până la servirea mâncării și cererea notei de plată. Aceasta arată interacțiunea dintre toate cele 4 roluri și sistemele intermediare (API, AI, WebSocket, Baza de Date).
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant C as 📱 Customer
+    participant FE as 🖥️ Frontend<br/>(Next.js)
+    participant API as ⚙️ FastAPI<br/>REST API
+    participant AI as 🤖 AI Agents
+    participant DB as 🐘 PostgreSQL
+    participant WS as ⚡ WebSocket<br/>Manager
+    participant CHEF as 👨‍🍳 Chef KDS
+    participant WAIT as 🏃 Waiter POS
+
+    Note over C,WAIT: 1️⃣ AUTENTIFICARE GUEST
+
+    C->>FE: Scanează QR Code → /customer?table_id=3
+    FE->>API: POST /auth/guest-login/3
+    API->>DB: Verifică existența mesei #3
+    DB-->>API: ✅ Masa există
+    API-->>FE: JWT Token (role: Guest, table_id: 3)
+    FE->>FE: Salvează guest_token în localStorage
+    FE->>WS: Conectare /ws/guest?token=...
+
+    Note over C,WAIT: 2️⃣ VIZUALIZARE MENIU & PLASARE COMANDĂ
+
+    FE->>API: GET /menu (Authorization: Bearer token)
+    API->>DB: SELECT menu_items JOIN categories
+    DB-->>API: Lista produse cu categorii
+    API-->>FE: JSON [{name, price, category, image}...]
+    C->>FE: Adaugă produse în coș + instrucțiuni speciale
+    C->>FE: Apasă "Plasează Comanda"
+    FE->>API: POST /orders {items: [{menu_item_id, qty}...]}
+
+    Note over API,AI: 3️⃣ PROCESARE AI & PERSISTARE
+
+    API->>DB: Validează toate menu_item_id-urile
+    DB-->>API: ✅ Toate produsele există
+    API->>AI: run_ai_safety_agent(instrucțiuni)
+    AI-->>API: urgency: "NORMAL" sau "CRITICAL"
+    API->>AI: run_ai_kds_optimizer(items)
+    AI-->>API: cooking_strategy: "STANDARD" sau "HIGH_COMPLEXITY"
+    API->>DB: INSERT Order + OrderItems (status: pending)
+    API->>DB: UPDATE Table SET status = 'occupied'
+    DB-->>API: ✅ Comanda #42 creată
+
+    Note over API,WAIT: 4️⃣ NOTIFICARE REAL-TIME
+
+    API->>WS: broadcast_to_role("chef", NEW_ORDER)
+    WS-->>CHEF: 🔔 {event: NEW_ORDER, table: 3, items, ai_metadata}
+    API->>WS: broadcast_to_role("waiter", TABLE_OCCUPIED)
+    WS-->>WAIT: 🔔 {event: TABLE_OCCUPIED, table: 3}
+    API-->>FE: ✅ {order_id: 42, ai_safety: "NORMAL"}
+    FE->>C: Redirect → /customer/success
+
+    Note over CHEF,WAIT: 5️⃣ PREPARARE & SERVIRE
+
+    CHEF->>API: PUT /orders/items/101/ready
+    API->>DB: UPDATE OrderItem SET status = 'ready_for_pickup'
+    API->>WS: broadcast_to_role("waiter", FOOD_READY_FOR_PICKUP)
+    WS-->>WAIT: 🔔 Masa #3 — preparat gata!
+    WAIT->>API: PUT /orders/items/101/served
+    API->>DB: UPDATE OrderItem SET status = 'served'
+
+    Note over C,WAIT: 6️⃣ CERERE NOTĂ DE PLATĂ
+
+    C->>FE: Apasă "Cere Nota" → selectează Cash/Card
+    FE->>API: POST /tables/3/request-bill {payment_method: "card"}
+    API->>DB: UPDATE Table SET status = 'bill_requested'
+    API->>WS: broadcast_to_role("waiter", BILL_REQUESTED)
+    WS-->>WAIT: 💳 Masa #3 vrea nota — POS/Card
+    WAIT->>API: POST /tables/3/close
+    API->>DB: UPDATE Table SET status = 'free', waiter_id = NULL
+    API->>DB: UPDATE Order SET status = 'paid'
+```
+
+**Pașii 1–2 (Autentificare & Meniu):** Clientul scanează codul QR de pe masă, care deschide aplicația cu parametrul `table_id`. Frontend-ul obține automat un JWT token de tip Guest (fără cont/parolă), apoi afișează meniul grupat pe categorii. La plasarea comenzii, frontend-ul trimite `menu_item_id` (nu numele) pentru fiecare produs, iar backend-ul calculează totalul server-side din prețurile reale din DB.
+
+**Pașii 3–4 (AI & Notificări):** Backend-ul rulează doi agenți AI pe fiecare comandă: Safety Agent detectează alergeni/urgențe din instrucțiunile speciale, iar KDS Optimizer evaluează complexitatea preparării. Comanda este apoi broadcast-ată în timp real prin WebSocket către Chef KDS (cu metadatele AI) și către Waiter POS (notificare de masă ocupată).
+
+**Pașii 5–6 (Servire & Plată):** Bucătarul marchează fiecare preparat individual ca „Gata", iar chelnerul primește notificarea instant și confirmă servirea. La final, clientul poate cere nota direct din aplicație, iar chelnerul închide masa — resetând statusul la „free" pentru următorii clienți.
+
+---
+
+## � Ciclul de Viață al Comenzii (State Diagram)
+
+Diagramele de mai jos ilustrează toate stările posibile pentru entitățile centrale ale sistemului: `OrderItem` (un preparat individual) și `Order` (întreaga comandă a mesei). Tranzițiile sunt declanșate fie de acțiunile utilizatorilor (Chef, Waiter), fie automat de backend la evenimentele de sistem.
+
+### OrderItem — Stările unui Preparat Individual
+
+```mermaid
+stateDiagram-v2
+    direction LR
+
+    [*] --> pending : POST /orders\n(Client sau Waiter plasează comanda)
+
+    pending --> ready_for_pickup : PUT /orders/items/{id}/ready\n[Chef marchează preparatul gata]\n→ WS broadcast FOOD_READY_FOR_PICKUP
+
+    ready_for_pickup --> served : PUT /orders/items/{id}/served\n[Waiter confirmă servirea la masă]
+
+    served --> [*]
+
+    note right of pending
+        Status inițial la crearea OrderItem.
+        Bucătarul vede preparatul pe KDS.
+    end note
+
+    note right of ready_for_pickup
+        Chelnerul primește notificare WS.
+        Preparatul așteaptă la pick-up window.
+    end note
+
+    note right of served
+        Preparat livrat la masă.
+        Vizibil în istoricul comenzii.
+    end note
+```
+
+### Order — Stările Comenzii de Masă
+
+```mermaid
+stateDiagram-v2
+    direction LR
+
+    [*] --> pending : POST /orders\n(Comandă nouă sau adăugare produse)
+
+    pending --> ready : Toate OrderItem-urile → served\n[Auto sau manual de Waiter]
+
+    pending --> pending : PUT /orders (adăugare produse noi)\ntotal_price += produse_noi
+
+    ready --> served : Waiter confirmă toate preparatele\n→ WS broadcast FOOD_READY
+
+    served --> paid : POST /tables/{n}/close\n[Waiter închide masa]\n→ Table.status = free
+
+    paid --> [*]
+
+    note right of pending
+        Comanda activă.
+        Poate primi produse adiționale
+        de la Waiter sau alt client.
+    end note
+
+    note right of ready
+        Toate preparatele gata.
+        Masa în starea waiting_for_food.
+    end note
+
+    note right of served
+        Mâncare la masă.
+        Client poate cere nota.
+    end note
+
+    note right of paid
+        Masa liberă, flux complet.
+    end note
+```
+
+**`OrderItem`** urmează un flux liniar strict: `pending → ready_for_pickup → served`. Fiecare tranziție este declanșată de un rol specific — bucătarul marchează `ready_for_pickup` (cu notificare WS instantanee), iar chelnerul confirmă `served` după livrare. Stările sunt independente per preparat, permițând servirea parțială a comenzii.
+
+**`Order`** are un ciclu de viață mai complex: rămâne în `pending` atât timp cât bucătăria lucrează, poate primi produse adiționale în această stare (de la Waiter sau un al doilea client la aceeași masă), și trece prin `ready → served → paid` odată ce toată masa a fost servită și nota achitată.
+
+---
+
+## �🚀 Quick Start (Local Development)
 
 To make it as easy as possible to grade or review the system, the backend is fully containerized.
 
