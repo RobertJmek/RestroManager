@@ -3,7 +3,7 @@ from pydantic import BaseModel, Field
 from typing import List, Optional
 from sqlmodel import Session, select
 
-from core.security import get_current_guest, require_role
+from core.security import get_valid_user_or_guest
 from models.user import TokenData
 from core.websocket_manager import manager
 from core.ai import run_ai_kds_optimizer, run_ai_safety_agent
@@ -20,16 +20,17 @@ router = APIRouter(prefix="/orders", tags=["Orders"])
 class OrderItemPayload(BaseModel):
     """Un singur produs din comandă."""
     menu_item_id: int = Field(ge=1)
-    name: str = Field(min_length=1, max_length=200)
+    name: Optional[str] = Field(default=None, min_length=1, max_length=200)
     quantity: int = Field(ge=1, le=99)
-    prep_time: int = Field(ge=0, le=120)
+    prep_time: Optional[int] = Field(default=None, ge=0, le=120)
     special_instructions: Optional[str] = Field(default=None, max_length=500)
 
 
 class OrderCreatePayload(BaseModel):
-    """Payload-ul complet trimis de clientul Guest."""
+    """Payload-ul complet trimis de clientul Guest sau Chelner."""
     items: List[OrderItemPayload] = Field(min_length=1, max_length=50)
     table_number: Optional[int] = Field(default=None, ge=1)
+    table_id: Optional[int] = Field(default=None, ge=1, description="ID masă pentru comenzi create de chelner")
     total: Optional[float] = Field(default=None, ge=0.0)
 
 
@@ -43,7 +44,9 @@ async def process_order_creation_logic(
     session: Session,
     table: Table,
     order: OrderCreatePayload,
-    source: str = "guest"
+    source: str = "guest",
+    user_id: int | None = None,
+    user_role: str | None = None
 ) -> dict:
     """Helper comun pentru client și chelner pentru a crea/lipi comanda."""
     menu_items_map: dict[int, MenuItem] = {}
@@ -107,6 +110,11 @@ async def process_order_creation_logic(
     if table.status == TableStatus.free:
         table.status = TableStatus.occupied
         session.add(table)
+    
+    # Auto-assign table to waiter who creates the order (same transaction)
+    if user_role == "waiter" and user_id and table.waiter_id != user_id:
+        table.waiter_id = user_id
+        session.add(table)
 
     session.commit()
 
@@ -146,31 +154,60 @@ async def process_order_creation_logic(
         "status": "Processed by AI and sent to KDS",
         "ai_safety": safety_priority,
         "table_id": table.number,
-        "order_id": db_order.id
+        "order_id": db_order.id,
+        "items": new_items_responses
     }
 
 
 @router.post("")
 async def create_order(
     order: OrderCreatePayload,
-    guest: TokenData = Depends(get_current_guest),
+    user: TokenData = Depends(get_valid_user_or_guest),
     session: Session = Depends(get_session)
 ):
-    table_number = guest.table_id
-    if table_number is None:
+    # Determine table_id based on user type (case-insensitive role check)
+    user_role = user.role.lower() if user.role else ""
+    if user_role == "guest":
+        table_number = user.table_id
+        if table_number is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Token-ul Guest nu conține un table_id valid"
+            )
+    elif user_role == "waiter":
+        # Waiter must provide table_id in request
+        if not order.table_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Chelnerul trebuie să specifice table_id în cerere"
+            )
+        table_number = order.table_id
+    else:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Token-ul Guest nu conține un table_id valid"
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Doar Guest sau Waiter pot crea comenzi (rol primit: {user.role})"
         )
 
-    table = session.exec(select(Table).where(Table.number == table_number)).first()
+    # Query by Table.id for waiter orders, by Table.number for guest orders
+    if user_role == "waiter":
+        table = session.exec(select(Table).where(Table.id == table_number)).first()
+    else:
+        table = session.exec(select(Table).where(Table.number == table_number)).first()
+    
     if not table:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Masa {table_number} nu există în baza de date"
         )
 
-    return await process_order_creation_logic(session, table, order, source="guest")
+    source = "waiter" if user_role == "waiter" else "guest"
+    
+    # Pass user info to process_order_creation_logic for atomic waiter assignment
+    return await process_order_creation_logic(
+        session, table, order, source=source,
+        user_id=user.user_id if user_role == "waiter" else None,
+        user_role=user_role if user_role == "waiter" else None
+    )
 
 
 @router.patch("/{order_id}/status")

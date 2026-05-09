@@ -4,6 +4,13 @@ from models.table import Table, TableStatus
 from models.menu_item import MenuItem
 from models.category import Category  
 from models.order import Order, OrderStatus
+from core.security import create_access_token
+
+# Helper to create a guest token
+def create_guest_token(table_id: int = 1):
+    return create_access_token(
+        data={"role": "Guest", "table_id": table_id}
+    )
 
 # --- 1. INTEGRARE MENIU & CATEGORII ---
 def test_menu_category_integration(client, session):
@@ -45,8 +52,13 @@ def test_create_order_full_integration(client, session):
         }]
     }
     
-    # 1. Executăm comanda
-    response = client.post("/api/orders", json=order_payload)
+    # 1. Executăm comanda cu token guest valid
+    token = create_guest_token(table_id=1)
+    response = client.post(
+        "/api/orders", 
+        json=order_payload,
+        headers={"Authorization": f"Bearer {token}"}
+    )
     assert response.status_code == 200
     
     # 2. Verificăm dacă AI-ul a procesat datele (verificăm structura răspunsului)

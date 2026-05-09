@@ -1,11 +1,16 @@
 from models.category import Category
 from models.table import Table, TableStatus
 from models.menu_item import MenuItem
+from core.security import create_access_token
 
+# Helper to create a guest token
+def create_guest_token(table_id: int = 1):
+    return create_access_token(
+        data={"role": "Guest", "table_id": table_id}
+    )
 
 def test_complete_customer_journey(client, session):
     # 1. SETUP: Masă, Categorie, Produs
-    # conftest mock_get_current_guest returns table_id=1 → table number must be 1
     cat = Category(name="Băuturi")
     session.add(cat)
     table = Table(number=1, capacity=2, status=TableStatus.free)
@@ -16,11 +21,15 @@ def test_complete_customer_journey(client, session):
 
     # 2. CLIENTUL FACE COMANDA (Trigger AI Safety)
     order_payload = {
-        "items": [{"menu_item_id": 1, "quantity": 2, "name": "Limonadă", "prep_time": 5}],
-        "table_number": 5
+        "items": [{"menu_item_id": 1, "quantity": 2, "name": "Limonadă", "prep_time": 5}]
     }
     # Simulăm token-ul de Guest scanat la masă
-    response = client.post("/api/orders", json=order_payload)
+    token = create_guest_token(table_id=1)
+    response = client.post(
+        "/api/orders", 
+        json=order_payload,
+        headers={"Authorization": f"Bearer {token}"}
+    )
     assert response.status_code == 200
     order_id = response.json()["order_id"]
 

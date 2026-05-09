@@ -9,7 +9,7 @@ def run_ai_kds_optimizer(items: List[dict]) -> str:
     AGENT AI 1: Kitchen Optimizer.
     Analizează complexitatea produselor pentru a sugera prioritizarea.
     """
-    total_prep_expected = sum([item.get("prep_time", 10) for item in items])
+    total_prep_expected = sum([item.get("prep_time") if item.get("prep_time") is not None else 10 for item in items])
     if total_prep_expected > 25:
         return "HIGH_COMPLEXITY - Start Prep Immediately"
     return "STANDARD_PRIORITY"

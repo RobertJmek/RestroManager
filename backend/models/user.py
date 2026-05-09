@@ -62,3 +62,4 @@ class TokenData(SQLModel):
     email: Optional[str] = None
     role: Optional[str] = None
     table_id: Optional[int] = None
+    user_id: Optional[int] = None

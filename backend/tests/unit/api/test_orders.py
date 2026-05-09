@@ -4,15 +4,16 @@ from models.order import Order, OrderStatus
 from models.table import Table, TableStatus
 from models.menu_item import MenuItem
 from main import app
-from core.security import get_current_guest, get_current_user
+from core.security import get_current_user
 
 @pytest.fixture
 def guest_client(client):
-    def override_get_current_guest():
+    from core.security import get_valid_user_or_guest
+    def override_get_valid_user_or_guest():
         return TokenData(role="Guest", table_id=5)
-    app.dependency_overrides[get_current_guest] = override_get_current_guest
+    app.dependency_overrides[get_valid_user_or_guest] = override_get_valid_user_or_guest
     yield client
-    app.dependency_overrides.pop(get_current_guest, None)
+    app.dependency_overrides.pop(get_valid_user_or_guest, None)
 
 @pytest.fixture
 def chef_client(client):
@@ -22,12 +23,24 @@ def chef_client(client):
     yield client
     app.dependency_overrides.pop(get_current_user, None)
 
+@pytest.fixture
+def waiter_client(client):
+    """Client authenticated as waiter using get_valid_user_or_guest"""
+    from core.security import get_valid_user_or_guest
+    def override_get_valid_user_or_guest():
+        return TokenData(email="waiter@test.com", role="Waiter", user_id=2)
+    app.dependency_overrides[get_valid_user_or_guest] = override_get_valid_user_or_guest
+    yield client
+    app.dependency_overrides.pop(get_valid_user_or_guest, None)
+
 def test_create_order_as_guest(guest_client, mock_db_session):
+    # exec().first() for table lookup and active_order lookup
     mock_db_session.exec.return_value.first.side_effect = [
         Table(id=1, number=5, status=TableStatus.free), # First find table
         None, # active_order lookup
-        MenuItem(id=1, name="Pizza", price=10.0, category_id=1) # find menu item
     ]
+    # session.get() for menu item lookup
+    mock_db_session.get.return_value = MenuItem(id=1, name="Pizza", price=10.0, category_id=1, is_available=True)
     
     def mock_refresh(obj):
         obj.id = 1
@@ -44,6 +57,8 @@ def test_create_order_as_guest(guest_client, mock_db_session):
     assert response.status_code == 200
     assert response.json()["status"] == "Processed by AI and sent to KDS"
     assert response.json()["table_id"] == 5
+    # Verify session.get was called for menu item lookup
+    mock_db_session.get.assert_called_with(MenuItem, 1)
 
 def test_create_order_as_guest_invalid_table(guest_client, mock_db_session):
     mock_db_session.exec.return_value.first.return_value = None # table not found
@@ -75,3 +90,66 @@ def test_update_order_status_not_found(chef_client, mock_db_session):
     mock_db_session.get.return_value = None
     response = chef_client.patch("/api/orders/99/status", json={"status": "ready"})
     assert response.status_code == 404
+
+def test_create_order_as_waiter(waiter_client, mock_db_session):
+    """Test that waiter can create order for any table by providing table_id"""
+    # exec().first() for table lookup and active_order lookup
+    mock_db_session.exec.return_value.first.side_effect = [
+        Table(id=1, number=3, status=TableStatus.free), # Find table
+        None, # No active order
+    ]
+    # session.get() for menu item lookup
+    mock_db_session.get.return_value = MenuItem(id=1, name="Burger", price=15.0, category_id=1, is_available=True)
+    
+    def mock_refresh(obj):
+        if hasattr(obj, 'id'):
+            obj.id = 1
+    mock_db_session.refresh.side_effect = mock_refresh
+    
+    response = waiter_client.post("/api/orders", json={
+        "items": [
+            {"menu_item_id": 1, "quantity": 2, "special_instructions": "No onions"}
+        ],
+        "table_id": 3  # Waiter specifies table_id
+    })
+    
+    assert response.status_code == 200
+    data = response.json()
+    assert data["table_id"] == 3
+    assert data["status"] == "Processed by AI and sent to KDS"
+    assert "items" in data
+
+def test_create_order_as_waiter_missing_table_id(waiter_client, mock_db_session):
+    """Test that waiter gets error when table_id is missing"""
+    response = waiter_client.post("/api/orders", json={
+        "items": [{"menu_item_id": 1, "quantity": 1}]
+    })
+    
+    assert response.status_code == 400
+    assert "table_id" in response.json()["detail"].lower() or "waiter" in response.json()["detail"].lower()
+
+def test_create_order_as_waiter_auto_claims_table(waiter_client, mock_db_session):
+    """Test that table is auto-assigned to waiter who creates the order"""
+    table = Table(id=1, number=5, status=TableStatus.free, waiter_id=None)
+    # exec().first() for table lookup and active_order lookup
+    mock_db_session.exec.return_value.first.side_effect = [
+        table,  # Find table (unclaimed)
+        None,   # No active order
+    ]
+    # session.get() for menu item lookup
+    mock_db_session.get.return_value = MenuItem(id=1, name="Pasta", price=12.0, category_id=1, is_available=True)
+    
+    def mock_refresh(obj):
+        if hasattr(obj, 'id'):
+            obj.id = 1
+    mock_db_session.refresh.side_effect = mock_refresh
+    
+    response = waiter_client.post("/api/orders", json={
+        "items": [{"menu_item_id": 1, "quantity": 1}],
+        "table_id": 5
+    })
+    
+    assert response.status_code == 200
+    # Verify table was assigned to waiter (user_id=2 from fixture)
+    assert table.waiter_id == 2
+    mock_db_session.add.assert_called()  # Table was saved
