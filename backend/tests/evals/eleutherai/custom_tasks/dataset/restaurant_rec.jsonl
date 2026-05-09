@@ -1,0 +1,10 @@
+{"query": "I want vegan pasta", "choices": ["Vegan Pasta Primavera (28 RON)", "Quinoa Buddha Bowl (32 RON)", "Margherita Pizza (35 RON)"], "gold": 0}
+{"query": "Something spicy and cheap under 30", "choices": ["Fresh Fruit Salad (18 RON)", "Spicy Chicken Wings (35 RON)", "Thai Red Curry (38 RON)", "Jalapeño Burger (42 RON)"], "gold": 1}
+{"query": "Gluten-free options", "choices": ["Quinoa Buddha Bowl (32 RON)", "Grilled Salmon (55 RON)", "Margherita Pizza (35 RON)"], "gold": 0}
+{"query": "Heavy dinner steak expensive", "choices": ["Classic Cheeseburger (40 RON)", "Ribeye Steak (75 RON)", "Filet Mignon (85 RON)"], "gold": 1}
+{"query": "Light lunch healthy salad", "choices": ["Caesar Salad (26 RON)", "Greek Salad (24 RON)", "Grilled Veggie Wrap (24 RON)"], "gold": 1}
+{"query": "Asian food spicy curry", "choices": ["Thai Red Curry (38 RON)", "Spicy Chicken Wings (35 RON)", "Grilled Salmon (55 RON)"], "gold": 0}
+{"query": "Kid friendly not spicy", "choices": ["Margherita Pizza (35 RON)", "Chocolate Lava Cake (22 RON)", "Jalapeño Burger (42 RON)"], "gold": 0}
+{"query": "Dessert sweet vegan", "choices": ["Chocolate Lava Cake (22 RON)", "Fresh Fruit Salad (18 RON)", "Quinoa Buddha Bowl (32 RON)"], "gold": 1}
+{"query": "Burger with meat beef", "choices": ["Classic Cheeseburger (40 RON)", "Jalapeño Burger (42 RON)", "Grilled Veggie Wrap (24 RON)"], "gold": 0}
+{"query": "Seafood fish salmon", "choices": ["Grilled Salmon (55 RON)", "Ribeye Steak (75 RON)", "Quinoa Buddha Bowl (32 RON)"], "gold": 0}

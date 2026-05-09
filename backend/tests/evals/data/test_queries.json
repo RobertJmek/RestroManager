@@ -1,0 +1,189 @@
+{
+  "queries": [
+    {
+      "id": "veg-001",
+      "query": "I need vegan options",
+      "expected_item_ids": [101, 102, 103, 402],
+      "expected_categories": ["vegan"],
+      "expected_tags": ["vegan"],
+      "difficulty": "easy",
+      "type": "dietary"
+    },
+    {
+      "id": "veg-002",
+      "query": "What can I eat as a vegetarian?",
+      "expected_item_ids": [101, 102, 103, 104, 401, 402, 501, 502],
+      "expected_categories": ["vegetarian"],
+      "expected_tags": ["vegetarian"],
+      "difficulty": "easy",
+      "type": "dietary"
+    },
+    {
+      "id": "gf-001",
+      "query": "gluten-free dishes please",
+      "expected_item_ids": [102, 302, 402, 502, 701, 702],
+      "expected_categories": ["gluten-free"],
+      "expected_tags": ["gluten-free"],
+      "difficulty": "easy",
+      "type": "dietary"
+    },
+    {
+      "id": "spicy-001",
+      "query": "I want something spicy",
+      "expected_item_ids": [201, 202, 203],
+      "expected_categories": ["spicy"],
+      "expected_tags": ["spicy"],
+      "difficulty": "easy",
+      "type": "taste"
+    },
+    {
+      "id": "spicy-002",
+      "query": "Hot and spicy burger",
+      "expected_item_ids": [203],
+      "expected_categories": ["Burgers"],
+      "expected_tags": ["spicy"],
+      "difficulty": "medium",
+      "type": "taste"
+    },
+    {
+      "id": "sweet-001",
+      "query": "Something sweet for dessert",
+      "expected_item_ids": [401, 402],
+      "expected_categories": ["Desserts"],
+      "expected_tags": [],
+      "difficulty": "easy",
+      "type": "taste"
+    },
+    {
+      "id": "cheap-001",
+      "query": "Cheap options under 25 RON",
+      "expected_item_ids": [103, 402, 502],
+      "expected_categories": [],
+      "expected_tags": [],
+      "price_max": 25,
+      "difficulty": "medium",
+      "type": "price"
+    },
+    {
+      "id": "expensive-001",
+      "query": "I want an expensive steak",
+      "expected_item_ids": [701, 702],
+      "expected_categories": ["Steaks"],
+      "expected_tags": [],
+      "price_min": 70,
+      "difficulty": "easy",
+      "type": "price"
+    },
+    {
+      "id": "light-001",
+      "query": "Light lunch options",
+      "expected_item_ids": [103, 402, 501, 502, 601],
+      "expected_categories": ["Wraps", "Salads", "Desserts"],
+      "expected_tags": [],
+      "difficulty": "medium",
+      "type": "meal_type"
+    },
+    {
+      "id": "heavy-001",
+      "query": "Something filling and heavy",
+      "expected_item_ids": [202, 301, 701, 702],
+      "expected_categories": ["Asian", "Burgers", "Steaks"],
+      "expected_tags": [],
+      "difficulty": "medium",
+      "type": "meal_type"
+    },
+    {
+      "id": "complex-001",
+      "query": "Vegan, gluten-free, and not too expensive",
+      "expected_item_ids": [102, 402],
+      "expected_categories": [],
+      "expected_tags": ["vegan", "gluten-free"],
+      "price_max": 30,
+      "difficulty": "hard",
+      "type": "multi_constraint"
+    },
+    {
+      "id": "complex-002",
+      "query": "Spicy vegetarian pasta under 35 RON",
+      "expected_item_ids": [],
+      "expected_categories": ["Pasta"],
+      "expected_tags": ["spicy", "vegetarian"],
+      "price_max": 35,
+      "difficulty": "hard",
+      "type": "multi_constraint"
+    },
+    {
+      "id": "allergy-001",
+      "query": "No nuts, I'm allergic",
+      "expected_item_ids": [101, 102, 103, 104, 201, 202, 203, 301, 302, 401, 402, 501, 502, 601, 701, 702],
+      "expected_categories": [],
+      "expected_tags": [],
+      "allergen": "nuts",
+      "difficulty": "hard",
+      "type": "allergy"
+    },
+    {
+      "id": "asian-001",
+      "query": "Asian food",
+      "expected_item_ids": [202],
+      "expected_categories": ["Asian"],
+      "expected_tags": [],
+      "difficulty": "easy",
+      "type": "cuisine"
+    },
+    {
+      "id": "pizza-001",
+      "query": "Pizza options",
+      "expected_item_ids": [104],
+      "expected_categories": ["Pizza"],
+      "expected_tags": [],
+      "difficulty": "easy",
+      "type": "cuisine"
+    },
+    {
+      "id": "salad-001",
+      "query": "Healthy salad",
+      "expected_item_ids": [501, 502],
+      "expected_categories": ["Salads"],
+      "expected_tags": [],
+      "difficulty": "easy",
+      "type": "cuisine"
+    },
+    {
+      "id": "chicken-001",
+      "query": "Chicken dishes",
+      "expected_item_ids": [201, 601],
+      "expected_categories": [],
+      "expected_tags": [],
+      "difficulty": "easy",
+      "type": "ingredient"
+    },
+    {
+      "id": "beef-001",
+      "query": "Beef burger or steak",
+      "expected_item_ids": [203, 301, 701, 702],
+      "expected_categories": ["Burgers", "Steaks"],
+      "expected_tags": [],
+      "difficulty": "easy",
+      "type": "ingredient"
+    },
+    {
+      "id": "romantic-001",
+      "query": "Romantic dinner for date night",
+      "expected_item_ids": [302, 701, 702],
+      "expected_categories": ["Seafood", "Steaks"],
+      "expected_tags": [],
+      "difficulty": "medium",
+      "type": "occasion"
+    },
+    {
+      "id": "quick-001",
+      "query": "Quick bite, I'm in a hurry",
+      "expected_item_ids": [103, 104, 601],
+      "expected_categories": ["Wraps", "Pizza"],
+      "expected_tags": [],
+      "difficulty": "medium",
+      "type": "occasion"
+    }
+  ]
+}

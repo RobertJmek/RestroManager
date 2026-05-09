@@ -217,16 +217,28 @@ def _fallback_chat_response(message: str, menu_items: List[Dict], session_id: st
     keywords = message_lower.split()
 
     matched = []
-    for item in menu_items[:5]:
-        score = sum(1 for kw in keywords if kw in item.get("name", "").lower())
+    for item in menu_items[:10]:  # Check more items
+        name_lower = item.get("name", "").lower()
+        tags_lower = " ".join(item.get("dietary_tags", [])).lower()
+        desc_lower = item.get("description", "").lower()
+        
+        # Score from name, tags, and description
+        score = sum(1 for kw in keywords if kw in name_lower)
+        score += sum(0.5 for kw in keywords if kw in tags_lower)  # Partial score for tags
+        score += sum(0.3 for kw in keywords if kw in desc_lower)   # Partial score for description
+        
         if score > 0:
             matched.append({
                 "item_id": item["id"],
                 "name": item["name"],
                 "reasoning": "Matches your request",
                 "price": item.get("price"),
-                "confidence": 0.7
+                "confidence": min(score * 0.3, 0.9),
+                "score": score  # For sorting
             })
+    
+    # Sort by score descending
+    matched.sort(key=lambda x: x.get("score", 0), reverse=True)
 
     # If no keyword matches, use menu items or generic fallback
     if not matched:

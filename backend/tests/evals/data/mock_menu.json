@@ -1,0 +1,146 @@
+[
+  {
+    "id": 101,
+    "name": "Vegan Pasta Primavera",
+    "description": "Fresh seasonal vegetables with marinara sauce",
+    "price": 28.0,
+    "dietary_tags": ["vegan", "vegetarian"],
+    "category": "Pasta",
+    "is_available": true
+  },
+  {
+    "id": 102,
+    "name": "Quinoa Buddha Bowl",
+    "description": "Quinoa, avocado, chickpeas, tahini dressing",
+    "price": 32.0,
+    "dietary_tags": ["vegan", "vegetarian", "gluten-free"],
+    "category": "Bowls",
+    "is_available": true
+  },
+  {
+    "id": 103,
+    "name": "Grilled Veggie Wrap",
+    "description": "Hummus, grilled vegetables, whole wheat wrap",
+    "price": 24.0,
+    "dietary_tags": ["vegan", "vegetarian"],
+    "category": "Wraps",
+    "is_available": true
+  },
+  {
+    "id": 104,
+    "name": "Margherita Pizza",
+    "description": "Classic tomato, mozzarella, basil",
+    "price": 35.0,
+    "dietary_tags": ["vegetarian"],
+    "category": "Pizza",
+    "is_available": true
+  },
+  {
+    "id": 201,
+    "name": "Spicy Chicken Wings",
+    "description": "Hot buffalo sauce, celery, ranch",
+    "price": 35.0,
+    "dietary_tags": ["spicy"],
+    "category": "Appetizers",
+    "is_available": true
+  },
+  {
+    "id": 202,
+    "name": "Thai Red Curry",
+    "description": "Coconut curry with vegetables and jasmine rice",
+    "price": 38.0,
+    "dietary_tags": ["spicy"],
+    "category": "Asian",
+    "is_available": true
+  },
+  {
+    "id": 203,
+    "name": "Jalapeño Burger",
+    "description": "Beef patty with jalapeños and pepper jack",
+    "price": 42.0,
+    "dietary_tags": ["spicy"],
+    "category": "Burgers",
+    "is_available": true
+  },
+  {
+    "id": 301,
+    "name": "Classic Cheeseburger",
+    "description": "Angus beef, cheddar, lettuce, tomato",
+    "price": 40.0,
+    "dietary_tags": [],
+    "category": "Burgers",
+    "is_available": true
+  },
+  {
+    "id": 302,
+    "name": "Grilled Salmon",
+    "description": "Atlantic salmon with lemon butter",
+    "price": 55.0,
+    "dietary_tags": ["gluten-free"],
+    "category": "Seafood",
+    "is_available": true
+  },
+  {
+    "id": 401,
+    "name": "Chocolate Lava Cake",
+    "description": "Warm chocolate cake with molten center",
+    "price": 22.0,
+    "dietary_tags": ["vegetarian"],
+    "category": "Desserts",
+    "is_available": true
+  },
+  {
+    "id": 402,
+    "name": "Fresh Fruit Salad",
+    "description": "Seasonal fruits with mint",
+    "price": 18.0,
+    "dietary_tags": ["vegan", "vegetarian", "gluten-free"],
+    "category": "Desserts",
+    "is_available": true
+  },
+  {
+    "id": 501,
+    "name": "Caesar Salad",
+    "description": "Romaine, parmesan, croutons, caesar dressing",
+    "price": 26.0,
+    "dietary_tags": ["vegetarian"],
+    "category": "Salads",
+    "is_available": true
+  },
+  {
+    "id": 502,
+    "name": "Greek Salad",
+    "description": "Tomatoes, cucumber, feta, olives, oregano",
+    "price": 24.0,
+    "dietary_tags": ["vegetarian", "gluten-free"],
+    "category": "Salads",
+    "is_available": true
+  },
+  {
+    "id": 601,
+    "name": "Chicken Caesar Wrap",
+    "description": "Grilled chicken, romaine, caesar dressing in wrap",
+    "price": 30.0,
+    "dietary_tags": [],
+    "category": "Wraps",
+    "is_available": true
+  },
+  {
+    "id": 701,
+    "name": "Ribeye Steak",
+    "description": "12oz ribeye with mashed potatoes",
+    "price": 75.0,
+    "dietary_tags": ["gluten-free"],
+    "category": "Steaks",
+    "is_available": true
+  },
+  {
+    "id": 702,
+    "name": "Filet Mignon",
+    "description": "8oz tenderloin with asparagus",
+    "price": 85.0,
+    "dietary_tags": ["gluten-free"],
+    "category": "Steaks",
+    "is_available": true
+  }
+]
