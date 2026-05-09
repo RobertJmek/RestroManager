@@ -237,11 +237,22 @@ def _fallback_chat_response(message: str, menu_items: List[Dict], session_id: st
             "price": item.get("price", 0)
         } for item in menu_items[:3]]
     
-    # Build dish_text for response
-    dish_text = "\n\n".join([f"{d['name']}\n{d['price']} RON\n{d['reasoning']}" for d in matched])
+    # Build dish_text for response (handle empty case)
+    if matched:
+        dish_text = "\n\n".join([f"{d['name']}\n{d['price']} RON\n{d['reasoning']}" for d in matched])
+        response_text = f"Here are some dishes you might like:\n\n{dish_text}"
+    else:
+        # Fallback when no menu items available
+        matched = [{
+            "item_id": 1,
+            "name": "Chef's Special",
+            "reasoning": "Ask your server for today's special!",
+            "price": 0
+        }]
+        response_text = "I'd love to help you find something delicious! Please ask your server about our current menu options."
     
     return {
-        "response_text": f"Here are some dishes you might like:\n\n{dish_text}",
+        "response_text": response_text,
         "suggested_dishes": matched[:3],
         "follow_up_question": "Would you like more details about any of these?",
         "session_id": session_id,
