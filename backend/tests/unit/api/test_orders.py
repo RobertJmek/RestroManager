@@ -34,11 +34,13 @@ def waiter_client(client):
     app.dependency_overrides.pop(get_valid_user_or_guest, None)
 
 def test_create_order_as_guest(guest_client, mock_db_session):
+    # exec().first() for table lookup and active_order lookup
     mock_db_session.exec.return_value.first.side_effect = [
         Table(id=1, number=5, status=TableStatus.free), # First find table
         None, # active_order lookup
-        MenuItem(id=1, name="Pizza", price=10.0, category_id=1) # find menu item
     ]
+    # session.get() for menu item lookup
+    mock_db_session.get.return_value = MenuItem(id=1, name="Pizza", price=10.0, category_id=1, is_available=True)
     
     def mock_refresh(obj):
         obj.id = 1
@@ -55,6 +57,8 @@ def test_create_order_as_guest(guest_client, mock_db_session):
     assert response.status_code == 200
     assert response.json()["status"] == "Processed by AI and sent to KDS"
     assert response.json()["table_id"] == 5
+    # Verify session.get was called for menu item lookup
+    mock_db_session.get.assert_called_with(MenuItem, 1)
 
 def test_create_order_as_guest_invalid_table(guest_client, mock_db_session):
     mock_db_session.exec.return_value.first.return_value = None # table not found
@@ -89,11 +93,13 @@ def test_update_order_status_not_found(chef_client, mock_db_session):
 
 def test_create_order_as_waiter(waiter_client, mock_db_session):
     """Test that waiter can create order for any table by providing table_id"""
+    # exec().first() for table lookup and active_order lookup
     mock_db_session.exec.return_value.first.side_effect = [
         Table(id=1, number=3, status=TableStatus.free), # Find table
         None, # No active order
-        MenuItem(id=1, name="Burger", price=15.0, category_id=1) # Find menu item
     ]
+    # session.get() for menu item lookup
+    mock_db_session.get.return_value = MenuItem(id=1, name="Burger", price=15.0, category_id=1, is_available=True)
     
     def mock_refresh(obj):
         if hasattr(obj, 'id'):
@@ -125,11 +131,13 @@ def test_create_order_as_waiter_missing_table_id(waiter_client, mock_db_session)
 def test_create_order_as_waiter_auto_claims_table(waiter_client, mock_db_session):
     """Test that table is auto-assigned to waiter who creates the order"""
     table = Table(id=1, number=5, status=TableStatus.free, waiter_id=None)
+    # exec().first() for table lookup and active_order lookup
     mock_db_session.exec.return_value.first.side_effect = [
         table,  # Find table (unclaimed)
         None,   # No active order
-        MenuItem(id=1, name="Pasta", price=12.0, category_id=1)
     ]
+    # session.get() for menu item lookup
+    mock_db_session.get.return_value = MenuItem(id=1, name="Pasta", price=12.0, category_id=1, is_available=True)
     
     def mock_refresh(obj):
         if hasattr(obj, 'id'):

@@ -44,7 +44,9 @@ async def process_order_creation_logic(
     session: Session,
     table: Table,
     order: OrderCreatePayload,
-    source: str = "guest"
+    source: str = "guest",
+    user_id: int | None = None,
+    user_role: str | None = None
 ) -> dict:
     """Helper comun pentru client și chelner pentru a crea/lipi comanda."""
     menu_items_map: dict[int, MenuItem] = {}
@@ -107,6 +109,11 @@ async def process_order_creation_logic(
 
     if table.status == TableStatus.free:
         table.status = TableStatus.occupied
+        session.add(table)
+    
+    # Auto-assign table to waiter who creates the order (same transaction)
+    if user_role == "waiter" and user_id and table.waiter_id != user_id:
+        table.waiter_id = user_id
         session.add(table)
 
     session.commit()
@@ -181,7 +188,12 @@ async def create_order(
             detail=f"Doar Guest sau Waiter pot crea comenzi (rol primit: {user.role})"
         )
 
-    table = session.exec(select(Table).where(Table.number == table_number)).first()
+    # Query by Table.id for waiter orders, by Table.number for guest orders
+    if user_role == "waiter":
+        table = session.exec(select(Table).where(Table.id == table_number)).first()
+    else:
+        table = session.exec(select(Table).where(Table.number == table_number)).first()
+    
     if not table:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -190,14 +202,12 @@ async def create_order(
 
     source = "waiter" if user_role == "waiter" else "guest"
     
-    # Auto-assign table to waiter who creates the order
-    if user_role == "waiter" and table.waiter_id != user.user_id:
-        table.waiter_id = user.user_id
-        session.add(table)
-        session.commit()
-        session.refresh(table)
-    
-    return await process_order_creation_logic(session, table, order, source=source)
+    # Pass user info to process_order_creation_logic for atomic waiter assignment
+    return await process_order_creation_logic(
+        session, table, order, source=source,
+        user_id=user.user_id if user_role == "waiter" else None,
+        user_role=user_role if user_role == "waiter" else None
+    )
 
 
 @router.patch("/{order_id}/status")

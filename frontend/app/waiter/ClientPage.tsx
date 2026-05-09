@@ -128,7 +128,12 @@ function WaiterContent() {
         const orderData = await res.json();
         setCart({});
         setIsMenuMode(false);
-        fetchTables();
+        // Refresh tables and update selectedTable to get new waiter_id and status
+        await fetchTables();
+        const updatedTable = tablesRef.current.find(t => t.id === selectedTable.id);
+        if (updatedTable) {
+          setSelectedTable(updatedTable);
+        }
         // Set the newly created order as active
         setActiveOrder(orderData);
       } else {
