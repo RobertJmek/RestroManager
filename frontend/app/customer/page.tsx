@@ -31,6 +31,7 @@ interface MenuItem {
 import { useSearchParams } from 'next/navigation';
 import { Suspense } from 'react';
 import UserProfileMenu from "../../components/ui/UserProfileMenu";
+import { AIChatWidget } from "@/components/AIChatWidget";
 
 function CustomerContent() {
   const [selectedItem, setSelectedItem] = useState<MenuItem | null>(null);
@@ -51,6 +52,10 @@ function CustomerContent() {
   
   const [isBillDialogOpen, setIsBillDialogOpen] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+
+  const [isAIDialogOpen, setIsAIDialogOpen] = useState(false);
+  const [selectedAIItem, setSelectedAIItem] = useState<{ id: number; name: string; price: number } | null>(null);
+  const [aiNotes, setAINotes] = useState("");
 
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
 
@@ -549,6 +554,53 @@ function CustomerContent() {
           <span className="text-[10px] font-bold mt-1 uppercase leading-none">Ajutor</span>
         </Button>
       </div>
+
+      {/* AI Chat Widget for dish recommendations */}
+      {guestToken && (
+        <AIChatWidget
+          onAddToCart={(item) => {
+            setSelectedAIItem(item);
+            setAINotes("");
+            setIsAIDialogOpen(true);
+          }}
+        />
+      )}
+
+      {/* AI Add to Cart Dialog */}
+      <Dialog open={isAIDialogOpen} onOpenChange={setIsAIDialogOpen}>
+        <DialogContent className="bg-slate-900 border-slate-700 text-white sm:max-w-[450px]">
+          <DialogHeader>
+            <DialogTitle className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-violet-400 to-indigo-400">{selectedAIItem?.name}</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-4 py-6">
+            <textarea
+              placeholder="Note speciale (alergii, preferințe)..."
+              className="w-full bg-slate-950 text-white rounded-xl p-5 min-h-[120px] border border-slate-700 focus:border-violet-500 focus:ring-1 focus:ring-violet-500/30 outline-none"
+              value={aiNotes}
+              onChange={(e) => setAINotes(e.target.value)}
+            />
+          </div>
+          <DialogFooter>
+            <Button className="w-full bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 py-7 text-lg font-bold rounded-full" onClick={() => {
+              if (selectedAIItem) {
+                const newItem = {
+                  id: Math.random().toString(36).substr(2, 9),
+                  productId: selectedAIItem.id,
+                  name: selectedAIItem.name,
+                  price: selectedAIItem.price,
+                  quantity: 1,
+                  notes: aiNotes
+                };
+                setCart(prev => [...prev, newItem]);
+                setIsAIDialogOpen(false);
+                showToast(`✅ ${selectedAIItem.name} added from AI recommendation!`);
+              }
+            }}>
+              🛒 Adaugă în coș
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {toast && (
         <div className={`fixed bottom-4 right-4 px-6 py-3 rounded-lg shadow-lg z-50 ${

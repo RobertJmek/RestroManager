@@ -68,6 +68,26 @@ def require_role(allowed_roles: List[str]):
         return current_user
     return role_checker
 
+async def get_current_user_optional(
+    token: str = Depends(oauth2_scheme),
+    session: Session = Depends(get_session)
+) -> Optional[User]:
+    """
+    Dependency for optional authentication.
+    Returns the user if authenticated, None otherwise (doesn't raise exception).
+    """
+    try:
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        email: str = payload.get("sub")
+        if email is None:
+            return None
+        
+        user = session.exec(select(User).where(User.email == email)).first()
+        return user
+    except (jwt.PyJWTError, Exception):
+        return None
+
+
 async def get_current_guest(token: str = Depends(oauth2_scheme)) -> TokenData:
     """
     Dependency special pentru GUEST (Clienti la masa).
