@@ -4,15 +4,16 @@ from models.order import Order, OrderStatus
 from models.table import Table, TableStatus
 from models.menu_item import MenuItem
 from main import app
-from core.security import get_current_guest, get_current_user
+from core.security import get_current_user
 
 @pytest.fixture
 def guest_client(client):
-    def override_get_current_guest():
+    from core.security import get_valid_user_or_guest
+    def override_get_valid_user_or_guest():
         return TokenData(role="Guest", table_id=5)
-    app.dependency_overrides[get_current_guest] = override_get_current_guest
+    app.dependency_overrides[get_valid_user_or_guest] = override_get_valid_user_or_guest
     yield client
-    app.dependency_overrides.pop(get_current_guest, None)
+    app.dependency_overrides.pop(get_valid_user_or_guest, None)
 
 @pytest.fixture
 def chef_client(client):
