@@ -521,12 +521,11 @@ docker compose exec backend pytest tests/evals/ -v
 | Category Diversity | ≥2 | Unique categories per recommendation |
 | NDCG@3 | ≥0.6 | Ranking quality |
 
-### CI/CD Integration
+### Running the Evals
 
-Evals run automatically in GitHub Actions on every push:
-- Uses **fallback mode** (no API cost, deterministic)
-- 30-second timeout per test
-- Stops on first failure (`-x` flag)
+**Note:** AI Agent Evals are designed for **local development** and require either:
+- DeepSeek API key for full testing, OR
+- Fallback mode (keyword matching, faster but less accurate)
 
 See `backend/tests/evals/README.md` for detailed documentation and `backend/tests/evals/eleutherai/` for optional standard LLM benchmarks.
 
