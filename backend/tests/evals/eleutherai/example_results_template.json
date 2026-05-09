@@ -1,0 +1,31 @@
+{
+  "version": "EleutherAI LM Evaluation Harness",
+  "model": "deepseek-chat",
+  "date": "2026-05-09",
+  "tasks": {
+    "arc_easy": {
+      "acc": 0.854,
+      "acc_stderr": 0.007,
+      "acc_norm": 0.875,
+      "acc_norm_stderr": 0.006
+    },
+    "hellaswag": {
+      "acc": 0.782,
+      "acc_stderr": 0.004,
+      "acc_norm": 0.845,
+      "acc_norm_stderr": 0.003
+    },
+    "boolq": {
+      "acc": 0.823,
+      "acc_stderr": 0.013,
+      "acc_norm": 0.823,
+      "acc_norm_stderr": 0.013
+    }
+  },
+  "summary": {
+    "average_accuracy": 0.820,
+    "total_tasks": 3,
+    "total_examples": 12742
+  },
+  "notes": "DeepSeek-V3 performance on standard benchmarks. Human baselines: arc_easy=90%, hellaswag=95%, boolq=85%"
+}
