@@ -4,7 +4,7 @@ from sqlmodel import SQLModel, Session, create_engine
 from fastapi.testclient import TestClient
 from main import app
 from db.session import get_session
-from core.security import get_current_guest
+from core.security import get_current_guest, get_valid_user_or_guest
 from models.user import TokenData
 
 # Baza de date de test (SQLite)
@@ -44,3 +44,14 @@ def mock_db_session():
     app.dependency_overrides[get_session] = lambda: mock
     yield mock
     app.dependency_overrides.pop(get_session, None)
+
+
+@pytest.fixture
+def mock_guest_auth():
+    """Override get_valid_user_or_guest to mock guest authentication."""
+    def mock_get_valid_user_or_guest():
+        return TokenData(role="Guest", table_id=1)
+    
+    app.dependency_overrides[get_valid_user_or_guest] = mock_get_valid_user_or_guest
+    yield
+    app.dependency_overrides.pop(get_valid_user_or_guest, None)

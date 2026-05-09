@@ -48,6 +48,8 @@ export function AIChatWidget({ onAddToCart }: AIChatWidgetProps) {
     const token = getToken();
     if (!msg.trim() || !token) return;
 
+    // Clear input and show user message immediately
+    setInput("");
     setIsLoading(true);
     setMessages(prev => [...prev, { role: "user", content: msg }]);
 
@@ -162,7 +164,14 @@ export function AIChatWidget({ onAddToCart }: AIChatWidgetProps) {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             placeholder="Tell me what you're craving..."
-            onKeyPress={(e) => e.key === "Enter" && sendMessage(input)}
+            onKeyDown={(e) => {
+              // Guard against IME composition (e.g., Korean/Chinese/Japanese input)
+              const nativeEvent = e.nativeEvent as KeyboardEvent;
+              if (e.key === "Enter" && !(nativeEvent as any).isComposing) {
+                e.preventDefault();
+                sendMessage(input);
+              }
+            }}
             className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500"
           />
           <Button size="icon" onClick={() => sendMessage(input)} disabled={isLoading} className="bg-violet-600 hover:bg-violet-500">

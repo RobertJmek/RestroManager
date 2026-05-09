@@ -6,7 +6,7 @@ from uuid import uuid4
 
 from db.session import get_session
 from models.menu_item import MenuItem
-from core.security import get_current_user_optional
+from core.security import get_valid_user_or_guest
 from core.ai import run_chat_recommendation_agent, clear_chat_session
 
 router = APIRouter(prefix="/recommendations")
@@ -41,7 +41,7 @@ class ChatRecommendationResponse(BaseModel):
 async def chat_recommendations(
     request: ChatRecommendationRequest,
     session: Session = Depends(get_session),
-    current_user = Depends(get_current_user_optional)
+    token_data = Depends(get_valid_user_or_guest)
 ):
     """
     Chat with AI to get personalized dish recommendations.
@@ -75,7 +75,7 @@ async def chat_recommendations(
 @router.post("/chat/clear")
 async def clear_chat(
     request: ClearChatRequest,
-    current_user = Depends(get_current_user_optional)
+    token_data = Depends(get_valid_user_or_guest)
 ):
     """Clear chat session (call when customer places order or starts new session)"""
     clear_chat_session(request.session_id)

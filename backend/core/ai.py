@@ -113,18 +113,29 @@ Respond in this JSON format:
         if not client:
             return _fallback_chat_response(message, menu_items, session_id)
 
-        # Call DeepSeek API (OpenAI-compatible)
+        # Build messages array with system prompt + conversation history + current message
+        chat_history = _chat_sessions.get(session_id, [])
+        messages = [{"role": "system", "content": system_prompt}]
+        
+        # Add previous conversation history (already capped at last 10)
+        for msg in chat_history:
+            # Map our stored roles to OpenAI roles (user/assistant)
+            role = msg["role"]
+            if role in ["user", "assistant"]:
+                messages.append({"role": role, "content": msg["content"]})
+        
+        # Add current user message
+        messages.append({"role": "user", "content": message})
+
+        # Call DeepSeek API (OpenAI-compatible) with full conversation context
         response = await client.chat.completions.create(
             model=settings.DEEPSEEK_MODEL,
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": message}
-            ],
+            messages=messages,
             temperature=0.4,
             max_tokens=800
         )
 
-        # Try to parse JSON response, fallback if model doesn't return valid JSON
+        # Try to parse JSON response, fallback to safe message if invalid
         try:
             response_text = response.choices[0].message.content.strip()
             # Remove markdown code blocks if present
@@ -138,22 +149,53 @@ Respond in this JSON format:
 
             result = json.loads(response_text)
         except json.JSONDecodeError:
-            # Fallback: treat as plain text response
+            # SAFETY: Return safe fallback instead of arbitrary model output
+            # This prevents off-topic/unsafe content from leaking through
             result = {
-                "response_text": response.choices[0].message.content,
+                "response_text": "I'm here to help you find great dishes from our menu! What type of food are you in the mood for today?",
                 "suggested_dishes": [],
                 "follow_up_question": None
             }
 
+        # Validate and sanitize AI suggestions against actual menu items
+        valid_menu_ids = {item["id"] for item in menu_items}
+        menu_lookup = {item["id"]: item for item in menu_items}
+        
+        raw_suggestions = result.get("suggested_dishes", [])[:3]  # Limit to max 3
+        validated_dishes = []
+        
+        for suggestion in raw_suggestions:
+            item_id = suggestion.get("item_id")
+            
+            # Skip if item_id is not in current menu
+            if item_id not in valid_menu_ids:
+                continue
+            
+            # Use actual menu data (overwrite AI's potentially hallucinated name/price)
+            menu_item = menu_lookup[item_id]
+            validated_dishes.append({
+                "item_id": item_id,
+                "name": menu_item["name"],  # From DB, not AI
+                "reasoning": suggestion.get("reasoning", "Recommended for you"),
+                "price": menu_item.get("price", 0),  # From DB, not AI
+            })
+        
         # Update chat history
         chat_history = _chat_sessions.get(session_id, [])
         chat_history.append({"role": "user", "content": message})
+        
+        # If no valid dishes but we have a valid AI response, still show the conversation
+        # Only use fallback if DeepSeek completely failed to give a useful response
+        if not validated_dishes and not result.get("response_text"):
+            _chat_sessions[session_id] = chat_history[-10:]
+            return _fallback_chat_response(message, menu_items, session_id)
+        
         chat_history.append({"role": "assistant", "content": result.get("response_text", "")})
         _chat_sessions[session_id] = chat_history[-10:]  # Keep last 10 messages
 
         return {
             "response_text": result.get("response_text", ""),
-            "suggested_dishes": result.get("suggested_dishes", []),
+            "suggested_dishes": validated_dishes,
             "follow_up_question": result.get("follow_up_question"),
             "session_id": session_id,
             "agent": settings.DEEPSEEK_MODEL
