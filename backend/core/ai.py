@@ -237,6 +237,9 @@ def _fallback_chat_response(message: str, menu_items: List[Dict], session_id: st
             "price": item.get("price", 0)
         } for item in menu_items[:3]]
     
+    # Build dish_text for response
+    dish_text = "\n\n".join([f"{d['name']}\n{d['price']} RON\n{d['reasoning']}" for d in matched])
+    
     return {
         "response_text": f"Here are some dishes you might like:\n\n{dish_text}",
         "suggested_dishes": matched[:3],
