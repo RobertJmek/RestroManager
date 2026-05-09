@@ -55,7 +55,12 @@ def run_benchmark(tasks, output_dir, api_key=None, limit=None):
     
     print(f"Running benchmark: {tasks}")
     print(f"Output: {output_path}")
-    print(f"Command: {' '.join(cmd[:8])}...")  # Hide API key
+    safe_cmd = cmd.copy()
+    if "--model_args" in safe_cmd:
+        model_args_index = safe_cmd.index("--model_args")
+        if model_args_index + 1 < len(safe_cmd):
+            safe_cmd[model_args_index + 1] = "api_key=<REDACTED>"
+    print(f"Command: {' '.join(safe_cmd[:8])}...")
     print()
     
     # Run
