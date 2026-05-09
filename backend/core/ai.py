@@ -228,17 +228,19 @@ def _fallback_chat_response(message: str, menu_items: List[Dict], session_id: st
                 "confidence": 0.7
             })
 
-    if not matched:
-        matched = [
-            {"item_id": item["id"], "name": item["name"],
-             "reasoning": "Popular choice", "price": item.get("price"), "confidence": 0.6}
-            for item in menu_items[:3]
-        ]
-
+    # If no keyword matches, return first 3 menu items as popular choices
+    if not matched and menu_items:
+        matched = [{
+            "item_id": item["id"],
+            "name": item["name"],
+            "reasoning": "Popular choice",
+            "price": item.get("price", 0)
+        } for item in menu_items[:3]]
+    
     return {
-        "response_text": "Here are some dishes you might like:",
+        "response_text": f"Here are some dishes you might like:\n\n{dish_text}",
         "suggested_dishes": matched[:3],
-        "follow_up_question": "Would you like to see more options?",
+        "follow_up_question": "Would you like more details about any of these?",
         "session_id": session_id,
         "agent": "fallback"
     }
