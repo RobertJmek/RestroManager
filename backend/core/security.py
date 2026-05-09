@@ -143,10 +143,11 @@ async def get_valid_user_or_guest(
         
         # Accept valid User tokens (any role)
         email: str = payload.get("sub")
-        if email is None:
+        user_id: int = payload.get("user_id")
+        if email is None or user_id is None:
             raise credentials_exception
             
-        return TokenData(email=email, role=role)
+        return TokenData(email=email, role=role, user_id=user_id)
         
     except jwt.PyJWTError:
         raise credentials_exception

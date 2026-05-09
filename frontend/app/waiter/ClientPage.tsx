@@ -111,30 +111,34 @@ function WaiterContent() {
     setIsSendingOrder(true);
     const orderItems = Object.values(cart).map((i: any) => ({
       menu_item_id: i.id,
-      name: i.name,
       quantity: i.quantity,
-      prep_time: i.prep_time_minutes || i.prep_time || 10,
       special_instructions: i.special_instructions || null
     }));
 
     try {
-      const res = await apiRequest(`/waiter/tables/${selectedTable.id}/orders`, {
+      // Use the standard orders endpoint with table_id for waiter-initiated orders
+      const res = await apiRequest(`/orders`, {
         method: "POST",
         body: JSON.stringify({
           items: orderItems,
-          total: cartTotal,
-          table_number: selectedTable.number
+          table_id: selectedTable.id  // Required for waiter-initiated orders
         })
       });
       if (res.ok) {
+        const orderData = await res.json();
         setCart({});
         setIsMenuMode(false);
         fetchTables();
-        const ordRes = await apiRequest(`/waiter/tables/${selectedTable.id}/active-order`);
-        if (ordRes.ok) setActiveOrder(await ordRes.json());
+        // Set the newly created order as active
+        setActiveOrder(orderData);
+      } else {
+        const error = await res.json();
+        console.error("Eroare la crearea comenzii:", error);
+        alert(`Eroare: ${error.detail || "Nu s-a putut crea comanda"}`);
       }
     } catch (err) {
       console.error(err);
+      alert("Eroare de rețea la crearea comenzii");
     } finally {
       setIsSendingOrder(false);
     }
@@ -158,8 +162,14 @@ function WaiterContent() {
   }, []);
 
   const handleTableClick = async (table: Table) => {
-    if (table.status !== "free") {
-      setSelectedTable(table);
+    setSelectedTable(table);
+    if (table.status === "free") {
+      // For free tables, allow creating a new order
+      setActiveOrder(null);
+      setIsMenuMode(true);
+      setCart({});
+    } else {
+      // For occupied/reserved tables, show existing order
       try {
         const res = await apiRequest(`/waiter/tables/${table.id}/active-order`);
         if (res.ok) {
@@ -370,11 +380,11 @@ function WaiterContent() {
                 {activeOrder ? (
                   <div className="mb-6 space-y-6 max-h-[60vh] overflow-y-auto pr-2">
                     {/* Grupa 1: În așteptare */}
-                    {activeOrder.items.filter((i: any) => i.status === 'pending').length > 0 && (
+                    {(activeOrder.items || []).filter((i: any) => i.status === 'pending').length > 0 && (
                       <div>
                         <h4 className="text-[10px] font-black text-slate-500 uppercase mb-2 tracking-wider">În așteptare (Bucătărie)</h4>
                         <ul className="space-y-2">
-                          {activeOrder.items.filter((i: any) => i.status === 'pending').map((item: any) => (
+                          {(activeOrder.items || []).filter((i: any) => i.status === 'pending').map((item: any) => (
                              <li key={item.id} className="flex flex-col bg-yellow-950/20 p-3 rounded-lg border border-yellow-800/50">
                                 <div className="flex justify-between items-center">
                                   <div>
@@ -391,11 +401,11 @@ function WaiterContent() {
                     )}
                     
                     {/* Grupa 2: De dus la masă */}
-                    {activeOrder.items.filter((i: any) => i.status === 'ready_for_pickup').length > 0 && (
+                    {(activeOrder.items || []).filter((i: any) => i.status === 'ready_for_pickup').length > 0 && (
                       <div>
                         <h4 className="text-[10px] font-black text-blue-400 uppercase mb-2 tracking-wider">De dus la masă</h4>
                         <ul className="space-y-2">
-                          {activeOrder.items.filter((i: any) => i.status === 'ready_for_pickup').map((item: any) => (
+                          {(activeOrder.items || []).filter((i: any) => i.status === 'ready_for_pickup').map((item: any) => (
                              <li key={item.id} className="flex flex-col bg-blue-950/20 p-3 rounded-lg border border-blue-800/50 shadow-sm">
                                 <div className="flex justify-between items-center">
                                   <div>
@@ -424,11 +434,11 @@ function WaiterContent() {
                     )}
                     
                     {/* Grupa 3: Servite */}
-                    {activeOrder.items.filter((i: any) => i.status === 'served').length > 0 && (
+                    {(activeOrder.items || []).filter((i: any) => i.status === 'served').length > 0 && (
                       <div>
                         <h4 className="text-[10px] font-black text-green-500 uppercase mb-2 tracking-wider">Servite pe masă</h4>
                         <ul className="space-y-2">
-                          {activeOrder.items.filter((i: any) => i.status === 'served').map((item: any) => (
+                          {(activeOrder.items || []).filter((i: any) => i.status === 'served').map((item: any) => (
                              <li key={item.id} className="flex flex-col bg-slate-800/50 p-3 rounded-lg border border-slate-700 opacity-60">
                                 <div className="flex justify-between items-center">
                                   <div>
