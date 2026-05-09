@@ -14,6 +14,14 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
 
+    # DeepSeek API Configuration
+    # Models: deepseek-v4-flash | deepseek-v4-pro | deepseek-chat (deprecated 2026/07/24)
+    # Base URL: https://api.deepseek.com (OpenAI-compatible)
+    DEEPSEEK_API_KEY: str | None = None
+    DEEPSEEK_MODEL: str = "deepseek-v4-flash"
+    DEEPSEEK_BASE_URL: str = "https://api.deepseek.com"
+    USE_AI_RECOMMENDATIONS: bool = True
+
     @field_validator("SECRET_KEY")
     @classmethod
     def validate_secret_key(cls, v: str) -> str:

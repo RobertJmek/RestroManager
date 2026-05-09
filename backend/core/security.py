@@ -13,6 +13,9 @@ from models.user import User, TokenData, UserRole
 # Configurare OAuth2
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/auth/login")
 
+# OAuth2 scheme for optional authentication (no 401 for missing header)
+oauth2_scheme_optional = OAuth2PasswordBearer(tokenUrl="api/auth/login", auto_error=False)
+
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     return bcrypt.checkpw(plain_password.encode('utf-8'), hashed_password.encode('utf-8'))
 
@@ -67,6 +70,87 @@ def require_role(allowed_roles: List[str]):
             )
         return current_user
     return role_checker
+
+async def get_current_user_optional(
+    token: Optional[str] = Depends(oauth2_scheme_optional),
+    session: Session = Depends(get_session)
+) -> Optional[User]:
+    """
+    Dependency for optional authentication.
+    Returns the user if authenticated, None if no token provided.
+    Raises 401 for invalid/malformed tokens.
+    """
+    # No token provided - this is OK for optional auth
+    if token is None:
+        return None
+    
+    # Token provided but invalid - raise 401
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Invalid authentication credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    
+    try:
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        email: str = payload.get("sub")
+        if email is None:
+            raise credentials_exception
+    except jwt.PyJWTError:
+        raise credentials_exception
+    
+    user = session.exec(select(User).where(User.email == email)).first()
+    if user is None:
+        raise credentials_exception
+        
+    return user
+
+
+async def get_valid_user_or_guest(
+    token: Optional[str] = Depends(oauth2_scheme_optional)
+) -> Optional[TokenData]:
+    """
+    Validates token as either a Guest token or a valid User token.
+    Returns TokenData with role info, or raises 401 if token is invalid.
+    Used for endpoints that accept both guests and authenticated users.
+    """
+    if token is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Invalid authentication credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    
+    try:
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        role: str = payload.get("role")
+        
+        if role is None:
+            raise credentials_exception
+            
+        # Accept Guest tokens
+        if role == "Guest":
+            table_id: int = payload.get("table_id")
+            if table_id is None:
+                raise credentials_exception
+            return TokenData(role=role, table_id=table_id)
+        
+        # Accept valid User tokens (any role)
+        email: str = payload.get("sub")
+        if email is None:
+            raise credentials_exception
+            
+        return TokenData(email=email, role=role)
+        
+    except jwt.PyJWTError:
+        raise credentials_exception
+
 
 async def get_current_guest(token: str = Depends(oauth2_scheme)) -> TokenData:
     """
