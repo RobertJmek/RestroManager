@@ -62,7 +62,7 @@ class TestSessionPersistence:
         # Session B
         await run_chat_recommendation_agent(
             message="spicy food",
-            session_b=session_b,
+            session_id=session_b,
             menu_items=mock_menu
         )
         
