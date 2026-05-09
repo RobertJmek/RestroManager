@@ -228,28 +228,28 @@ def _fallback_chat_response(message: str, menu_items: List[Dict], session_id: st
                 "confidence": 0.7
             })
 
-    # If no keyword matches, return first 3 menu items as popular choices
-    if not matched and menu_items:
-        matched = [{
-            "item_id": item["id"],
-            "name": item["name"],
-            "reasoning": "Popular choice",
-            "price": item.get("price", 0)
-        } for item in menu_items[:3]]
+    # If no keyword matches, use menu items or generic fallback
+    if not matched:
+        if menu_items:
+            # Use first 3 items from menu as popular choices
+            matched = [{
+                "item_id": item["id"],
+                "name": item["name"],
+                "reasoning": "Popular choice",
+                "price": item.get("price", 0)
+            } for item in menu_items[:3]]
+        else:
+            # No menu items available, use generic suggestion
+            matched = [{
+                "item_id": 1,
+                "name": "Chef's Special",
+                "reasoning": "Ask your server for today's special!",
+                "price": 0
+            }]
     
-    # Build dish_text for response (handle empty case)
-    if matched:
-        dish_text = "\n\n".join([f"{d['name']}\n{d['price']} RON\n{d['reasoning']}" for d in matched])
-        response_text = f"Here are some dishes you might like:\n\n{dish_text}"
-    else:
-        # Fallback when no menu items available
-        matched = [{
-            "item_id": 1,
-            "name": "Chef's Special",
-            "reasoning": "Ask your server for today's special!",
-            "price": 0
-        }]
-        response_text = "I'd love to help you find something delicious! Please ask your server about our current menu options."
+    # Build response text
+    dish_text = "\n\n".join([f"{d['name']}\n{d['price']} RON\n{d['reasoning']}" for d in matched])
+    response_text = f"Here are some dishes you might like:\n\n{dish_text}"
     
     return {
         "response_text": response_text,
