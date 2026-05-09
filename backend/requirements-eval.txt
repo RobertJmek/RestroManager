@@ -1,0 +1,12 @@
+# Optional dependencies for AI evaluation framework
+# Install: pip install -r requirements-eval.txt
+
+# Core app deps (needed for evals)
+-r requirements.txt
+
+# Test timeout support
+pytest-timeout==2.3.1
+
+# EleutherAI LM Evaluation Harness (benchmarking)
+# WARNING: This adds ~2GB due to PyTorch + CUDA libraries
+lm-eval==0.4.5
