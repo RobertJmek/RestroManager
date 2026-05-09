@@ -1,0 +1,20 @@
+task: restaurant_rec
+dataset_path: tests/evals/eleutherai/custom_tasks/dataset
+dataset_name: null
+test_split: train
+fewshot_split: null
+output_type: multiple_choice
+doc_to_text: "{{query}}"
+doc_to_target: "{{gold}}"
+doc_to_choice: "{{choices}}"
+should_decontaminate: false
+metric_list:
+  - metric: acc
+    aggregation: mean
+    higher_is_better: true
+  - metric: acc_norm
+    aggregation: mean
+    higher_is_better: true
+metadata:
+  description: "Restaurant recommendation task - match user query to correct menu items"
+  version: 0.1.0

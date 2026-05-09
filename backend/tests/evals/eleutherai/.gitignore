@@ -1,0 +1,8 @@
+# EleutherAI results (large JSON files, contains API responses)
+results/
+*.json
+logs/
+cache/
+
+# Don't ignore the example results template
+!example_results_template.json
