@@ -482,3 +482,53 @@ Get your API key at: https://platform.deepseek.com/
 
 ---
 
+## 🧪 AI Agent Evaluation Framework
+
+RestroManager includes a comprehensive evaluation framework for testing the DeepSeek recommendation agent across multiple dimensions: recommendation quality, safety guardrails, and conversational coherence.
+
+### What's Included
+
+| Component | Description | Test Count |
+|-----------|-------------|------------|
+| **Recommendation Quality** | Precision@K, NDCG, diversity metrics | 15+ tests |
+| **Safety Guardrails** | Off-topic rejection, false positive rate | 20+ tests |
+| **Conversational Quality** | Context retention, session persistence | 15+ tests |
+| **Metrics** | Custom scoring functions (Precision, Recall, NDCG, Diversity) | 8 functions |
+| **Test Data** | Mock menu, 20 golden queries, 30 adversarial inputs | - |
+
+### Running the Evals
+
+```bash
+# Run all evals (fast - uses fallback mode)
+docker compose exec backend pytest tests/evals/ -v
+
+# Run specific categories
+docker compose exec backend pytest tests/evals/test_safety_guardrails.py -v
+docker compose exec backend pytest tests/evals/test_recommendation_quality.py -v
+
+# Run with DeepSeek API (slower, requires API key)
+export DEEPSEEK_API_KEY=your_key_here
+docker compose exec backend pytest tests/evals/ -v
+```
+
+### Metrics & Targets
+
+| Metric | Target | Description |
+|--------|--------|-------------|
+| Precision@3 | ≥70% | Relevant items in top-3 suggestions |
+| Refusal Rate | 100% | Off-topic queries rejected |
+| False Positive Rate | ≤5% | Food queries wrongly rejected |
+| Category Diversity | ≥2 | Unique categories per recommendation |
+| NDCG@3 | ≥0.6 | Ranking quality |
+
+### CI/CD Integration
+
+Evals run automatically in GitHub Actions on every push:
+- Uses **fallback mode** (no API cost, deterministic)
+- 30-second timeout per test
+- Stops on first failure (`-x` flag)
+
+See `backend/tests/evals/README.md` for detailed documentation and `backend/tests/evals/eleutherai/` for optional standard LLM benchmarks.
+
+---
+

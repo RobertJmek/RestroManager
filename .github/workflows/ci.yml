@@ -45,8 +45,12 @@ jobs:
       - name: Run integration tests
         run: python -m pytest tests/integration/ -v --tb=short
 
-      - name: Run AI agent evals
-        run: python -m pytest tests/evals/ -v --tb=short
+      - name: Run AI agent evals (fast mode - fallback only)
+        env:
+          USE_AI_RECOMMENDATIONS: false  # Force fallback mode (no API cost)
+        run: python -m pytest tests/evals/ -v --tb=short --timeout=30 -x
+        # --timeout=30: max 30 sec per test
+        # -x: stop on first failure
 
       - name: Run coverage report
         run: |
