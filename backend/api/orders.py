@@ -3,7 +3,7 @@ from pydantic import BaseModel, Field
 from typing import List, Optional
 from sqlmodel import Session, select
 
-from core.security import get_current_guest, require_role, get_valid_user_or_guest
+from core.security import get_valid_user_or_guest
 from models.user import TokenData
 from core.websocket_manager import manager
 from core.ai import run_ai_kds_optimizer, run_ai_safety_agent
