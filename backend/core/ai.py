@@ -1,5 +1,6 @@
 from typing import List, Dict, Any
 import json
+import re
 from openai import AsyncOpenAI
 from core.config import settings
 
@@ -41,6 +42,78 @@ def get_deepseek_client():
         )
     return _deepseek_client
 
+_FALLBACK_RESULT = {
+    "response_text": "I'm here to help you find great dishes from our menu! What type of food are you in the mood for today?",
+    "suggested_dishes": [],
+    "follow_up_question": None,
+}
+
+
+def _extract_json(raw: str) -> dict:
+    """
+    Robustly extract the first JSON object from a model response.
+
+    Strategy (in order):
+    1. Direct parse — the response is clean JSON already.
+    2. Strip a single ```json ... ``` or ``` ... ``` fence, then parse.
+    3. Regex scan — find the first '{' and walk forward tracking brace depth
+       so we pull out exactly the outermost {...} block regardless of surrounding prose.
+    4. Fallback — return the safe default so the conversation can continue.
+    """
+    text = raw.strip()
+
+    # 1. Direct parse
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        pass
+
+    # 2. Strip a code fence
+    fence_pattern = re.compile(r"```(?:json)?\s*([\s\S]*?)\s*```", re.IGNORECASE)
+    fence_match = fence_pattern.search(text)
+    if fence_match:
+        try:
+            return json.loads(fence_match.group(1))
+        except json.JSONDecodeError:
+            pass
+
+    # 3. Brace-balanced extraction — handles JSON embedded in prose
+    start = text.find("{")
+    if start != -1:
+        depth = 0
+        in_string = False
+        escape_next = False
+        for i, ch in enumerate(text[start:], start=start):
+            if escape_next:
+                escape_next = False
+                continue
+            if ch == "\\" and in_string:
+                escape_next = True
+                continue
+            if ch == '"':
+                in_string = not in_string
+                continue
+            if in_string:
+                continue
+            if ch == "{":
+                depth += 1
+            elif ch == "}":
+                depth -= 1
+                if depth == 0:
+                    candidate = text[start : i + 1]
+                    try:
+                        return json.loads(candidate)
+                    except json.JSONDecodeError:
+                        break  # Malformed JSON — fall through to fallback
+
+    # 4. Safe fallback
+    import logging
+    logging.getLogger(__name__).warning(
+        "DeepSeek JSON parse failed — raw response was: %r", raw[:500]
+    )
+    return dict(_FALLBACK_RESULT)
+
+
 async def run_chat_recommendation_agent(
     message: str,
     session_id: str,
@@ -75,26 +148,12 @@ STRICT SAFETY GUARD - YOU MUST FOLLOW THESE RULES:
 ================================================================================
 
 1. ONLY answer questions about:
-   - Menu items and food descriptions
+   - Menu items and food descriptions,prices dietary info,allergens info
    - Dish recommendations based on preferences
    - Dietary advice (vegan, gluten-free, allergies)
    - Ingredients and allergens
    - Drink pairings with menu items
    - Restaurant services
-
-2. If asked about ANYTHING ELSE (politics, coding, homework, general knowledge,
-   medical diagnosis, personal advice, news, weather, etc.), you MUST respond
-   EXACTLY with this message and NOTHING else:
-   "I'm your food assistant and can only help with menu recommendations and dining advice. Is there something from our menu you'd like to know about?"
-
-3. NEVER provide:
-   - Medical advice beyond basic allergen information
-   - Code or technical help
-   - Opinions on non-food topics
-   - Personal or career advice
-   - General knowledge answers
-
-4. Stay helpful but firmly within food/dining scope.
 
 ================================================================================
 CONVERSATION STYLE:
@@ -132,30 +191,23 @@ Respond in this JSON format:
             model=settings.DEEPSEEK_MODEL,
             messages=messages,
             temperature=0.4,
-            max_tokens=800
+            max_tokens=1500  # Increased from 800 — Romanian responses were truncating the JSON object
         )
 
-        # Try to parse JSON response, fallback to safe message if invalid
-        try:
-            response_text = response.choices[0].message.content.strip()
-            # Remove markdown code blocks if present
-            if response_text.startswith("```json"):
-                response_text = response_text[7:]
-            if response_text.startswith("```"):
-                response_text = response_text[3:]
-            if response_text.endswith("```"):
-                response_text = response_text[:-3]
-            response_text = response_text.strip()
+        # Detect truncation before attempting to parse — a cut-off response will never be valid JSON
+        import logging as _logging
+        finish_reason = response.choices[0].finish_reason
+        raw_content = response.choices[0].message.content or ""
+        if finish_reason == "length":
+            _logging.getLogger(__name__).warning(
+                "DeepSeek response truncated (finish_reason='length'). "
+                "Consider raising max_tokens further. Raw tail: %r",
+                raw_content[-200:]
+            )
 
-            result = json.loads(response_text)
-        except json.JSONDecodeError:
-            # SAFETY: Return safe fallback instead of arbitrary model output
-            # This prevents off-topic/unsafe content from leaking through
-            result = {
-                "response_text": "I'm here to help you find great dishes from our menu! What type of food are you in the mood for today?",
-                "suggested_dishes": [],
-                "follow_up_question": None
-            }
+        # Robust JSON extraction: find the first {...} block anywhere in the response,
+        # regardless of surrounding markdown fences, prose, or extra whitespace.
+        result = _extract_json(raw_content)
 
         # Validate and sanitize AI suggestions against actual menu items
         valid_menu_ids = {item["id"] for item in menu_items}
