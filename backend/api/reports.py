@@ -43,25 +43,21 @@ def _parse_date(d: Optional[str]) -> date:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=f"Format dată invalid: {d}. Folosește YYYY-MM-DD.")
 
 
-@router.get("/range", response_model=RangeReportRead)
-async def get_range_report(
-    start_date: Optional[str] = Query(default=None),
-    end_date: Optional[str] = Query(default=None),
-    session: Session = Depends(get_session),
-    current_user: User = Depends(require_role(["Manager"]))
-):
-    """Raport pe o perioadă — doar Manager."""
+def build_range_report(
+    session: Session,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+) -> RangeReportRead:
+    """
+    Calculează raportul de vânzări pe o perioadă (revenue, comenzi, top items, revenue/zi).
+
+    Sursă unică de adevăr pentru raport — folosită atât de endpoint-ul /reports/range,
+    cât și de agentul AI de insights (api/insights.py). Datele lipsă (None) cad pe ziua curentă.
+    """
     today = datetime.now(timezone.utc).date()
 
-    if start_date:
-        start = _parse_date(start_date)
-    else:
-        start = today
-
-    if end_date:
-        end = _parse_date(end_date)
-    else:
-        end = today
+    start = _parse_date(start_date) if start_date else today
+    end = _parse_date(end_date) if end_date else today
 
     if start > end:
         start, end = end, start
@@ -116,3 +112,14 @@ async def get_range_report(
         top_items=top_items,
         revenue_by_day=revenue_by_day,
     )
+
+
+@router.get("/range", response_model=RangeReportRead)
+async def get_range_report(
+    start_date: Optional[str] = Query(default=None),
+    end_date: Optional[str] = Query(default=None),
+    session: Session = Depends(get_session),
+    current_user: User = Depends(require_role(["Manager"]))
+):
+    """Raport pe o perioadă — doar Manager."""
+    return build_range_report(session, start_date, end_date)

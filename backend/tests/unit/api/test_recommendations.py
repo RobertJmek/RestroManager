@@ -44,13 +44,16 @@ class TestRecommendationsAuth:
     def test_chat_valid_guest_token(self, client_with_db):
         """Valid guest token should access recommendations with fallback (no AI configured)."""
         token = create_guest_token(table_id=1)
-        
-        response = client_with_db.post(
-            "/api/recommendations/chat",
-            json={"message": "I want something spicy"},
-            headers={"Authorization": f"Bearer {token}"}
-        )
-        
+
+        # Forțăm fallback-ul explicit ca testul să fie determinist indiferent dacă
+        # mediul local are DEEPSEEK_API_KEY setat în .env.
+        with patch("core.ai.settings.USE_AI_RECOMMENDATIONS", False):
+            response = client_with_db.post(
+                "/api/recommendations/chat",
+                json={"message": "I want something spicy"},
+                headers={"Authorization": f"Bearer {token}"}
+            )
+
         assert response.status_code == 200
         data = response.json()
         assert "response_text" in data

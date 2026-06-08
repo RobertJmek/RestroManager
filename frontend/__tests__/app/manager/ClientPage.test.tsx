@@ -93,6 +93,48 @@ describe('Manager Dashboard', () => {
     expect(screen.getByRole('button', { name: 'Adaugă Produs' })).toBeInTheDocument()
   })
 
+  it('fills the product form from the AI content generator', async () => {
+    const ok = (data: unknown) =>
+      ({ ok: true, json: () => Promise.resolve(data) }) as unknown as Response
+    vi.mocked(api.apiRequest).mockImplementation((url: string) => {
+      if (url === '/menu') {
+        return Promise.resolve(ok([{ id: 1, name: 'Burger', price: 20, category: 'Food', is_available: true }]))
+      }
+      if (url === '/categories') {
+        return Promise.resolve(ok([{ id: 1, name: 'Food' }]))
+      }
+      if (url === '/manager/stats') {
+        return Promise.resolve(ok({ total_revenue: 0, total_orders: 0, menu_items_count: 1 }))
+      }
+      if (url === '/menu/ai-generate') {
+        return Promise.resolve(ok({
+          description: 'Un burger suculent cu vită Wagyu.',
+          dietary_tags: 'conține gluten',
+          suggested_category: { name: 'Food', is_new: false },
+          price_band: { min: 30, max: 45 },
+          prep_time_minutes: 12,
+          agent: 'deepseek-v4-flash',
+        }))
+      }
+      return Promise.resolve(ok({}))
+    })
+
+    render(<ManagerPage />)
+    await waitFor(() => expect(screen.getByText('Burger')).toBeInTheDocument())
+
+    fireEvent.click(screen.getByText('+ Adaugă Produs Nou'))
+    // Numele e necesar pentru a activa butonul AI.
+    fireEvent.change(screen.getByPlaceholderText('Ex: Burger Wagyu'), { target: { value: 'Burger Wagyu' } })
+    fireEvent.click(screen.getByRole('button', { name: /Generează cu AI/i }))
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('Un burger suculent cu vită Wagyu.')).toBeInTheDocument()
+      expect(screen.getByDisplayValue('conține gluten')).toBeInTheDocument()
+    })
+    // Intervalul de preț sugerat e afișat ca hint.
+    expect(screen.getByText(/Interval de preț sugerat/i)).toBeInTheDocument()
+  })
+
   it('can switch tabs', async () => {
     render(<ManagerPage />)
     

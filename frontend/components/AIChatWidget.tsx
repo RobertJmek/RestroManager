@@ -111,7 +111,7 @@ export function AIChatWidget({ onAddToCart }: AIChatWidgetProps) {
           <Sparkles className="mr-2 h-4 w-4 text-yellow-400" />
           AI Food Assistant
         </CardTitle>
-        <Button variant="ghost" size="sm" onClick={() => setIsOpen(false)} className="text-slate-400 hover:text-white hover:bg-slate-800">
+        <Button variant="ghost" size="sm" aria-label="Close chat" onClick={() => setIsOpen(false)} className="text-slate-400 hover:text-white hover:bg-slate-800">
           <X className="h-4 w-4" />
         </Button>
       </CardHeader>

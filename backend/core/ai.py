@@ -1,5 +1,6 @@
 from typing import List, Dict, Any
 import json
+import re
 from openai import AsyncOpenAI
 from core.config import settings
 
@@ -104,6 +105,8 @@ CONVERSATION STYLE:
 - When recommending, suggest 2-3 specific dishes with clear reasoning
 - Include dish prices and brief descriptions
 - Guide customers toward placing an order
+- Keep response_text concise (max ~4 sentences) and include AT MOST 3 dishes in suggested_dishes
+- Reply in the same language the customer used
 
 Respond in this JSON format:
 {{"response_text": "Your conversational reply", "suggested_dishes": [{{"item_id": 1, "name": "Dish Name", "reasoning": "Why this matches", "price": 15.99}}], "follow_up_question": "Ask something to continue the conversation or null"}}"""
@@ -132,23 +135,21 @@ Respond in this JSON format:
             model=settings.DEEPSEEK_MODEL,
             messages=messages,
             temperature=0.4,
-            max_tokens=800
+            # 800 era prea puțin: la cereri în română cu mai multe feluri, JSON-ul
+            # se tăia la mijloc și parsarea pica → fallback. 1500 lasă spațiu să se
+            # închidă obiectul (output-ul e oricum plafonat la 3 feluri prin prompt).
+            max_tokens=1500,
+            # JSON mode: pe conversațiile multi-tur modelul „aluneca" în proză liberă
+            # (răspunsul pe turul 2+ nu mai conținea JSON → parse fail → fallback).
+            # Forțează emiterea unui obiect JSON valid. Promptul conține deja "JSON".
+            response_format={"type": "json_object"},
         )
 
-        # Try to parse JSON response, fallback to safe message if invalid
-        try:
-            response_text = response.choices[0].message.content.strip()
-            # Remove markdown code blocks if present
-            if response_text.startswith("```json"):
-                response_text = response_text[7:]
-            if response_text.startswith("```"):
-                response_text = response_text[3:]
-            if response_text.endswith("```"):
-                response_text = response_text[:-3]
-            response_text = response_text.strip()
-
-            result = json.loads(response_text)
-        except json.JSONDecodeError:
+        # Parse JSON robustly (modelul adaugă des proză în jurul JSON-ului, mai ales
+        # la cereri complexe). _extract_json izolează obiectul {...} din răspuns.
+        raw_content = response.choices[0].message.content or ""
+        result = _extract_json(raw_content)
+        if not result or not isinstance(result, dict):
             # SAFETY: Return safe fallback instead of arbitrary model output
             # This prevents off-topic/unsafe content from leaking through
             result = {
@@ -275,3 +276,345 @@ def clear_chat_session(session_id: str):
     """Clear chat history for a session"""
     if session_id in _chat_sessions:
         del _chat_sessions[session_id]
+
+
+def _extract_json(raw: str):
+    """
+    Extrage primul obiect JSON dintr-un răspuns al modelului. Întoarce dict sau
+    None dacă nu se poate parsa (apelantul decide ce fallback folosește).
+
+    Strategie: parse direct → strip code-fence ```json ... ``` → scanare cu
+    echilibrare de acolade pentru a izola exact blocul {...} din proză.
+    """
+    if not raw:
+        return None
+    text = raw.strip()
+
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        pass
+
+    fence = re.search(r"```(?:json)?\s*([\s\S]*?)\s*```", text, re.IGNORECASE)
+    if fence:
+        try:
+            return json.loads(fence.group(1))
+        except json.JSONDecodeError:
+            pass
+
+    start = text.find("{")
+    if start != -1:
+        depth = 0
+        in_string = False
+        escape_next = False
+        for i, ch in enumerate(text[start:], start=start):
+            if escape_next:
+                escape_next = False
+                continue
+            if ch == "\\" and in_string:
+                escape_next = True
+                continue
+            if ch == '"':
+                in_string = not in_string
+                continue
+            if in_string:
+                continue
+            if ch == "{":
+                depth += 1
+            elif ch == "}":
+                depth -= 1
+                if depth == 0:
+                    try:
+                        return json.loads(text[start:i + 1])
+                    except json.JSONDecodeError:
+                        return None
+    return None
+
+
+# ============================================================================
+# AGENT AI 3: MANAGER ANALYTICS AGENT (conversational, session-based)
+# ============================================================================
+# Răspunde managerului la întrebări în limbaj natural despre datele de vânzări
+# (revenue, comenzi, top produse). Folosește același client DeepSeek + _extract_json.
+
+# Istoric separat de cel al clienților (_chat_sessions) ca să nu se amestece sesiunile.
+_insights_sessions: Dict[str, List[Dict]] = {}
+
+
+def _format_report_for_prompt(report: Dict[str, Any]) -> str:
+    """Compactează raportul într-un text lizibil pentru promptul modelului."""
+    top = ", ".join(
+        f"{t.get('name')} ({t.get('quantity_sold')} buc)"
+        for t in report.get("top_items", [])
+    ) or "fără date"
+    by_day = ", ".join(
+        f"{d.get('date')}: {d.get('revenue')} RON"
+        for d in report.get("revenue_by_day", [])
+    ) or "fără date"
+    return (
+        f"Perioadă: {report.get('start_date')} → {report.get('end_date')}\n"
+        f"Venit total: {report.get('total_revenue')} RON\n"
+        f"Număr comenzi: {report.get('total_orders')}\n"
+        f"Valoare medie comandă: {report.get('average_order_value')} RON\n"
+        f"Top produse: {top}\n"
+        f"Venit pe zile: {by_day}"
+    )
+
+
+def _format_menu_for_prompt(menu_items: List[Dict[str, Any]]) -> str:
+    """
+    Listă compactă cu prețul curent al fiecărui produs, pentru ca agentul să poată
+    sugera prețuri concrete (ex: happy hour) fără să inventeze valoarea de bază.
+    """
+    if not menu_items:
+        return ""
+    lines = []
+    for it in menu_items:
+        cat = it.get("category")
+        cat_txt = f" [{cat}]" if cat else ""
+        avail = "" if it.get("is_available", True) else " (indisponibil)"
+        lines.append(f"- {it.get('name')}{cat_txt}: {it.get('price')} RON{avail}")
+    return "PREȚURI MENIU (preț curent per produs):\n" + "\n".join(lines)
+
+
+def _insights_fallback(report: Dict[str, Any], session_id: str) -> Dict[str, Any]:
+    """Rezumat determinist al cifrelor când AI-ul nu e disponibil (fără API key)."""
+    insights = [
+        f"Venit total {report.get('total_revenue')} RON din {report.get('total_orders')} comenzi.",
+        f"Valoare medie pe comandă: {report.get('average_order_value')} RON.",
+    ]
+    top_items = report.get("top_items", [])
+    if top_items:
+        insights.append(f"Cel mai vândut produs: {top_items[0].get('name')}.")
+    return {
+        "response_text": (
+            "Asistentul AI nu este configurat momentan. Iată un rezumat al perioadei:\n"
+            + "\n".join(f"• {i}" for i in insights)
+        ),
+        "insights": insights,
+        "follow_up_question": None,
+        "session_id": session_id,
+        "agent": "fallback",
+    }
+
+
+async def run_manager_insights_agent(
+    message: str,
+    session_id: str,
+    report_data: Dict[str, Any],
+    menu_items: List[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    """
+    Agent conversațional care analizează raportul de vânzări pentru manager.
+
+    SAFETY: răspunde DOAR despre datele/operațiunile acestui restaurant.
+    Păstrează istoricul conversației per session_id (ultimele 10 mesaje).
+
+    `menu_items` (opțional): listă cu prețul curent al produselor, ca agentul să
+    poată sugera prețuri concrete (ex: happy hour) fără să inventeze valoarea de bază.
+    """
+    if not settings.USE_AI_RECOMMENDATIONS or not settings.DEEPSEEK_API_KEY:
+        return _insights_fallback(report_data, session_id)
+
+    client = get_deepseek_client()
+    if not client:
+        return _insights_fallback(report_data, session_id)
+
+    menu_section = _format_menu_for_prompt(menu_items)
+    menu_block = f"\n\n{menu_section}" if menu_section else ""
+
+    system_prompt = f"""Ești un analist de business pentru un restaurant. Ajuți managerul să înțeleagă datele de vânzări.
+
+DATELE DE VÂNZĂRI PENTRU PERIOADA SELECTATĂ:
+{_format_report_for_prompt(report_data)}{menu_block}
+
+================================================================================
+REGULI STRICTE:
+================================================================================
+1. Răspunde DOAR despre aceste date de vânzări și despre operațiunile restaurantului
+   (venituri, comenzi, produse populare, tendințe, sugestii de promovare/meniu).
+2. Nu inventa cifre — folosește doar datele de mai sus. Dacă o cifră lipsește, spune asta.
+   Pentru sugestii de preț (ex: happy hour, reduceri) pornește de la prețul curent din
+   lista de prețuri a meniului și aplică reducerea, indicând atât prețul nou cât și procentul.
+3. Fii concis și concret. Oferă observații acționabile.
+
+Răspunde în acest format JSON:
+{{"response_text": "Răspunsul tău conversațional", "insights": ["observație 1", "observație 2"], "follow_up_question": "O întrebare de continuare sau null"}}"""
+
+    try:
+        history = _insights_sessions.get(session_id, [])
+        messages = [{"role": "system", "content": system_prompt}]
+        for msg in history:
+            if msg["role"] in ["user", "assistant"]:
+                messages.append({"role": msg["role"], "content": msg["content"]})
+        messages.append({"role": "user", "content": message})
+
+        response = await client.chat.completions.create(
+            model=settings.DEEPSEEK_MODEL,
+            messages=messages,
+            temperature=0.3,
+            max_tokens=1200,
+            # Același motiv ca la agentul de client: pe conversații multi-tur modelul
+            # poate aluneca în proză fără JSON. Forțăm un obiect JSON valid.
+            response_format={"type": "json_object"},
+        )
+        raw_content = response.choices[0].message.content or ""
+        result = _extract_json(raw_content)
+
+        # Parse eșuat sau răspuns gol → rezumat determinist.
+        if not result or not result.get("response_text"):
+            return _insights_fallback(report_data, session_id)
+        response_text = result["response_text"]
+
+        insights = result.get("insights", [])
+        if not isinstance(insights, list):
+            insights = []
+
+        history.append({"role": "user", "content": message})
+        history.append({"role": "assistant", "content": response_text})
+        _insights_sessions[session_id] = history[-10:]
+
+        return {
+            "response_text": response_text,
+            "insights": [str(i) for i in insights],
+            "follow_up_question": result.get("follow_up_question"),
+            "session_id": session_id,
+            "agent": settings.DEEPSEEK_MODEL,
+        }
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning("Manager insights agent error: %s", e)
+        return _insights_fallback(report_data, session_id)
+
+
+def clear_insights_session(session_id: str):
+    """Șterge istoricul conversației de insights pentru o sesiune."""
+    if session_id in _insights_sessions:
+        del _insights_sessions[session_id]
+
+
+# ============================================================================
+# AGENT AI 4: MENU CONTENT GENERATOR (single-shot, non-destructiv)
+# ============================================================================
+# Pentru manager: generează descriere, etichete dietetice, categorie sugerată și
+# interval de preț pentru un produs nou, pornind de la nume + ingrediente.
+
+def _menu_content_fallback(
+    name: str,
+    ingredients: str,
+    existing_categories: List[str],
+) -> Dict[str, Any]:
+    """Sugestie template când AI-ul nu e disponibil."""
+    desc = f"{name} preparat cu {ingredients}." if ingredients else f"{name} — preparatul casei."
+    return {
+        "description": desc[:500],
+        "dietary_tags": "",
+        "suggested_category": {
+            "name": existing_categories[0] if existing_categories else "General",
+            "is_new": not bool(existing_categories),
+        },
+        "price_band": {"min": 0.0, "max": 0.0},
+        "prep_time_minutes": None,
+        "agent": "fallback",
+    }
+
+
+async def run_menu_content_agent(
+    name: str,
+    ingredients: str = "",
+    existing_categories: List[str] = None,
+    price_hint: float = None,
+) -> Dict[str, Any]:
+    """
+    Generează conținut pentru un produs de meniu (single-shot).
+
+    Returnează descriere, etichete dietetice, categorie sugerată (cu flag is_new
+    recalculat pe server) și interval de preț. NU scrie nimic în baza de date.
+    """
+    existing_categories = existing_categories or []
+
+    def _finalize(result: Dict[str, Any], agent: str) -> Dict[str, Any]:
+        """Validează output-ul: recalculează is_new față de categoriile reale."""
+        # Modelul poate întoarce câmpuri cu tipuri neașteptate (string în loc de
+        # obiect) — tolerăm asta ca să nu pierdem o descriere altfel bună.
+        cat = result.get("suggested_category")
+        if isinstance(cat, dict):
+            cat_name = (cat.get("name") or "").strip()
+        elif isinstance(cat, str):
+            cat_name = cat.strip()
+        else:
+            cat_name = ""
+        cat_name = cat_name or (existing_categories[0] if existing_categories else "General")
+        # Sursa de adevăr pentru is_new e lista reală, nu ce zice modelul.
+        lookup = {c.lower(): c for c in existing_categories}
+        if cat_name.lower() in lookup:
+            cat_name = lookup[cat_name.lower()]
+            is_new = False
+        else:
+            is_new = True
+        band = result.get("price_band")
+        if not isinstance(band, dict):
+            band = {}
+        try:
+            band_min = round(float(band.get("min", 0.0)), 2)
+            band_max = round(float(band.get("max", 0.0)), 2)
+        except (TypeError, ValueError):
+            band_min = band_max = 0.0
+        prep = result.get("prep_time_minutes")
+        try:
+            prep = int(prep) if prep is not None else None
+        except (TypeError, ValueError):
+            prep = None
+        return {
+            "description": str(result.get("description", ""))[:500],
+            "dietary_tags": str(result.get("dietary_tags", ""))[:255],
+            "suggested_category": {"name": cat_name, "is_new": is_new},
+            "price_band": {"min": band_min, "max": band_max},
+            "prep_time_minutes": prep,
+            "agent": agent,
+        }
+
+    if not settings.USE_AI_RECOMMENDATIONS or not settings.DEEPSEEK_API_KEY:
+        return _menu_content_fallback(name, ingredients, existing_categories)
+
+    client = get_deepseek_client()
+    if not client:
+        return _menu_content_fallback(name, ingredients, existing_categories)
+
+    categories_text = ", ".join(existing_categories) if existing_categories else "(niciuna încă)"
+    price_text = f"\nPreț orientativ sugerat de manager: {price_hint} RON" if price_hint else ""
+    system_prompt = f"""Ești un copywriter culinar care creează conținut pentru meniul unui restaurant.
+
+CATEGORII EXISTENTE: {categories_text}
+
+Pentru produsul dat (nume + ingrediente), generează:
+- O descriere atrăgătoare pentru clienți (max 400 caractere).
+- Etichete dietetice/alergeni relevante, separate prin virgulă (ex: "vegetarian, fără gluten, conține nuci"). Lasă "" dacă nu e cazul.
+- Categoria potrivită: alege din categoriile existente dacă se potrivește una, altfel propune un nume nou.
+- Un interval de preț estimat în RON (min/max).
+- Timp de preparare estimat în minute (sau null).
+
+Răspunde DOAR cu JSON în acest format:
+{{"description": "...", "dietary_tags": "...", "suggested_category": {{"name": "...", "is_new": true}}, "price_band": {{"min": 0.0, "max": 0.0}}, "prep_time_minutes": 15}}"""
+
+    user_prompt = f"Nume produs: {name}\nIngrediente: {ingredients or 'nespecificate'}{price_text}"
+
+    try:
+        response = await client.chat.completions.create(
+            model=settings.DEEPSEEK_MODEL,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+            temperature=0.5,
+            max_tokens=800,
+        )
+        raw_content = response.choices[0].message.content or ""
+        result = _extract_json(raw_content)
+        if not result or not result.get("description"):
+            return _menu_content_fallback(name, ingredients, existing_categories)
+        return _finalize(result, settings.DEEPSEEK_MODEL)
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning("Menu content agent error: %s", e)
+        return _menu_content_fallback(name, ingredients, existing_categories)

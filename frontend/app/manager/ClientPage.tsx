@@ -7,7 +7,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import UserProfileMenu from "@/components/ui/UserProfileMenu";
 import ClientRoleGuard from "@/components/ClientRoleGuard";
 import { apiRequest } from "@/lib/api";
-import { Pencil, Trash2 } from "lucide-react";
+import { ManagerInsightsChat } from "@/components/ManagerInsightsChat";
+import { Pencil, Trash2, Sparkles } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
@@ -70,6 +71,11 @@ export default function ManagerPage() {
   const [formPrepTime, setFormPrepTime] = useState("");
   const [formDietary, setFormDietary] = useState("");
   const [isFormAvailable, setIsFormAvailable] = useState(true);
+
+  // AI menu content generator (non-destructiv: doar populează formularul)
+  const [aiGenerating, setAiGenerating] = useState(false);
+  const [aiNewCategory, setAiNewCategory] = useState<string | null>(null);
+  const [aiPriceBand, setAiPriceBand] = useState<{ min: number; max: number } | null>(null);
 
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
@@ -140,6 +146,8 @@ export default function ManagerPage() {
     setPreviewImage(null);
     setImageUrl(null);
     setCompressionStats(null);
+    setAiNewCategory(null);
+    setAiPriceBand(null);
   }
 
   function handleAddNew() {
@@ -161,7 +169,58 @@ export default function ManagerPage() {
     setIsFormAvailable(item.is_available);
     setPreviewImage(item.image_url);
     setImageUrl(item.image_url);
+    setAiNewCategory(null);
+    setAiPriceBand(null);
     setIsModalOpen(true);
+  }
+
+  async function handleAiGenerate() {
+    if (formName.trim().length < 2) {
+      showToast("Introdu un nume de produs (minim 2 caractere)", "error");
+      return;
+    }
+    setAiGenerating(true);
+    setAiNewCategory(null);
+    try {
+      // price_hint trebuie să fie > 0 (backend respinge 0); altfel îl omitem.
+      const priceHint = formPrice ? parseFloat(formPrice) : NaN;
+      const res = await apiRequest("/menu/ai-generate", {
+        method: "POST",
+        body: JSON.stringify({
+          name: formName.trim(),
+          ingredients: formIngredients.trim() || null,
+          price_hint: priceHint > 0 ? priceHint : null,
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(typeof err.detail === "string" ? err.detail : "Generare eșuată");
+      }
+      const data = await res.json();
+      if (data.description) setFormDescription(data.description);
+      if (data.dietary_tags) setFormDietary(data.dietary_tags);
+      if (data.prep_time_minutes != null) setFormPrepTime(String(data.prep_time_minutes));
+      if (data.price_band) setAiPriceBand(data.price_band);
+      const cat = data.suggested_category;
+      if (cat) {
+        if (cat.is_new) {
+          // Categorie nouă: nu o creăm automat — îi spunem managerului s-o adauge.
+          setAiNewCategory(cat.name);
+        } else {
+          const match = categories.find((c) => c.name.toLowerCase() === cat.name.toLowerCase());
+          if (match) setFormCategoryId(match.id.toString());
+        }
+      }
+      showToast(
+        data.agent === "fallback"
+          ? "Sugestie generată (AI indisponibil — text de bază)"
+          : "Conținut generat cu AI"
+      );
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "Eroare la generare", "error");
+    } finally {
+      setAiGenerating(false);
+    }
   }
 
   async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -462,12 +521,18 @@ export default function ManagerPage() {
           <DialogContent className="bg-slate-900 border-slate-700 text-white sm:max-w-[550px] max-h-[90vh] overflow-y-auto">
             <DialogHeader><DialogTitle className="text-2xl font-bold text-green-400">{editingItem ? "Editează Produs" : "Adaugă Produs Nou"}</DialogTitle></DialogHeader>
             <div className="grid gap-4 py-2">
+              <div className="flex items-center justify-between bg-slate-800/50 border border-slate-700 rounded-lg px-3 py-2">
+                <span className="text-xs text-slate-400">Completează automat descrierea, tag-urile și categoria cu AI</span>
+                <Button type="button" size="sm" onClick={handleAiGenerate} disabled={aiGenerating || formName.trim().length < 2} className="bg-purple-600 hover:bg-purple-500 font-semibold shrink-0"><Sparkles size={14} className="mr-1.5" />{aiGenerating ? "Se generează..." : "Generează cu AI"}</Button>
+              </div>
               <div><label className="text-sm text-slate-400 mb-1.5 block">Nume Produs *</label><input type="text" value={formName} onChange={(e) => setFormName(e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2.5 text-white placeholder-slate-500 focus:border-green-500 outline-none transition-colors" placeholder="Ex: Burger Wagyu" /></div>
               <div><label className="text-sm text-slate-400 mb-1.5 block">Descriere</label><textarea value={formDescription} onChange={(e) => setFormDescription(e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2.5 text-white placeholder-slate-500 focus:border-green-500 outline-none transition-colors min-h-[80px] resize-y" placeholder="Descrierea produsului..." /></div>
               <div className="grid grid-cols-2 gap-4">
                 <div><label className="text-sm text-slate-400 mb-1.5 block">Preț (RON) *</label><input type="number" step="0.01" min="0.01" value={formPrice} onChange={(e) => setFormPrice(e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2.5 text-white placeholder-slate-500 focus:border-green-500 outline-none transition-colors" placeholder="0.00" /></div>
                 <div><label className="text-sm text-slate-400 mb-1.5 block">Categorie *</label><select value={formCategoryId} onChange={(e) => setFormCategoryId(e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2.5 text-white focus:border-green-500 outline-none transition-colors"><option value="">Selectează...</option>{categories.map((cat) => (<option key={cat.id} value={cat.id}>{cat.name}</option>))}</select></div>
               </div>
+              {aiPriceBand && (aiPriceBand.min > 0 || aiPriceBand.max > 0) && <p className="text-xs text-purple-300">💡 Interval de preț sugerat de AI: {aiPriceBand.min}–{aiPriceBand.max} RON</p>}
+              {aiNewCategory && <p className="text-xs text-purple-300">💡 AI sugerează o categorie nouă: <b>{aiNewCategory}</b> — creează-o din tab-ul „Categorii”, apoi selecteaz-o aici.</p>}
               <div><label className="text-sm text-slate-400 mb-1.5 block">Imagine Produs</label><div className="flex gap-3 items-start"><div className="flex-1"><input type="file" ref={fileInputRef} accept="image/jpeg,image/png,image/webp,image/gif" onChange={handleFileChange} className="w-full text-sm text-slate-400 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-slate-800 file:text-green-400 file:font-medium hover:file:bg-slate-700 file:cursor-pointer file:transition-colors" />{uploadingImage && <p className="text-xs text-yellow-400 mt-1.5">Se încarcă și se optimizează imaginea...</p>}{compressionStats && <p className="text-xs text-green-400 mt-1.5">✓ Optimizat: {(compressionStats.original / 1024).toFixed(1)}KB → {(compressionStats.optimized / 1024).toFixed(1)}KB</p>}</div>{previewImage && <img src={previewImage} alt="Preview" className="w-16 h-16 rounded-lg object-cover border border-slate-700 shrink-0" />}</div></div>
               <div><label className="text-sm text-slate-400 mb-1.5 block">Ingrediente</label><input type="text" value={formIngredients} onChange={(e) => setFormIngredients(e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2.5 text-white placeholder-slate-500 focus:border-green-500 outline-none transition-colors" placeholder="Ex: carne vită, cheddar, ceapă" /></div>
               <div className="grid grid-cols-2 gap-4">
@@ -622,6 +687,7 @@ export default function ManagerPage() {
           )}
           </>
         )}
+        <ManagerInsightsChat key={`${reportStart}_${reportEnd}`} startDate={reportStart} endDate={reportEnd} />
         </>
         )}
 

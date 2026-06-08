@@ -1,5 +1,5 @@
 import pytest
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 from models.user import User, UserRole
 from models.category import Category
 from models.menu_item import MenuItem
@@ -80,3 +80,31 @@ def test_delete_category_with_items(auth_client, mock_db_session):
     response = auth_client.delete("/api/categories/1")
     assert response.status_code == 400
     assert "Nu se poate șterge categoria" in response.json()["detail"]
+
+
+# --- AI Menu Content Generator (/menu/ai-generate) ---
+
+def test_ai_generate_requires_manager(client):
+    """No auth → 401 (Manager-only endpoint)."""
+    response = client.post("/api/menu/ai-generate", json={"name": "Pizza"})
+    assert response.status_code == 401
+
+def test_ai_generate_fallback_shape(auth_client, mock_db_session):
+    """No AI key → deterministic fallback suggestion, no DB writes."""
+    mock_db_session.exec.return_value.all.return_value = [
+        Category(id=1, name="Pizza"), Category(id=2, name="Băuturi")
+    ]
+    with patch("core.ai.settings.DEEPSEEK_API_KEY", None):
+        response = auth_client.post(
+            "/api/menu/ai-generate",
+            json={"name": "Pizza Margherita", "ingredients": "rosii, mozzarella"},
+        )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["agent"] == "fallback"
+    assert "Pizza Margherita" in data["description"]
+    assert "suggested_category" in data and "is_new" in data["suggested_category"]
+    assert "price_band" in data
+    # Non-destructiv: nu se scrie nimic în DB
+    mock_db_session.add.assert_not_called()
+    mock_db_session.commit.assert_not_called()
