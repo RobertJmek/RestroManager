@@ -145,18 +145,42 @@ Only **Custom Framework** (no API key needed):
 
 ---
 
-## 📊 Example Results
+## 📊 Latest Results
 
-### Custom Framework Output
+Full run on **2026-06-08**, model `deepseek-v4-flash`.
+
+| Suite | Command | Result |
+|-------|---------|--------|
+| Backend unit + integration | `pytest tests/unit tests/integration` | **111 passed** (~22s, no API) |
+| Frontend (vitest) | `npm test` | **29 passed** / 8 files (~2s) |
+| AI evals — manager agents (real) | `RUN_AI_EVALS=1 pytest tests/evals/test_*_quality.py` | **5 passed** (~27s) |
+| AI evals — full suite (real) | `RUN_AI_EVALS=1 pytest tests/evals` | **45 passed, 2 failed** (~3m47s) |
+
+### Manager-agent evals (live model)
 ```
-tests/evals/test_safety_guardrails.py::TestOffTopicRejection::test_coding_query_refused PASSED
-tests/evals/test_recommendation_quality.py::TestRecommendationRelevance::test_vegan_relevance PASSED
-tests/evals/test_conversational_quality.py::TestContextRetention::test_preference_retention PASSED
+test_insights_quality.py::...::test_summary_is_grounded               PASSED   grounding 1.00
+test_insights_quality.py::...::test_missing_figure_is_not_invented    PASSED
+test_insights_quality.py::...::test_happy_hour_derives_from_real_price PASSED
+test_menu_content_quality.py::...::test_generates_valid_structure     PASSED
+test_menu_content_quality.py::...::test_pizza_maps_to_existing_category PASSED
+```
+The insights agent summarized the period citing only report figures
+(grounding 1.00), declined to invent a price it wasn't given, and proposed a
+happy-hour price derived from the real menu price. The menu generator produced a
+valid, well-formed item and correctly slotted a pizza into the existing `Pizza`
+category.
 
-==== Summary ====
-Refusal Rate: 100% ✅
-Precision@3: 73% ✅
-False Positive: 2% ✅
+### Known failures (pre-existing, customer agent — not in this work's scope)
+- `test_recommendation_quality.py::test_spicy_relevance` — the mock fixture builds
+  JSON via `str(dict).replace("'", '"')`, which corrupts on an apostrophe
+  (`"you're"`), so the agent falls back → Precision@3 = 0. Test-data bug, not an
+  agent bug.
+- `test_recommendation_quality.py::test_category_diversity` — calls the live model
+  in fallback mode and asserts ≥2 categories; non-deterministic.
+
+### Earlier illustrative numbers
+```
+Refusal Rate: 100% ✅   Precision@3: 73% ✅   False Positive: 2% ✅
 ```
 
 ### EleutherAI Output

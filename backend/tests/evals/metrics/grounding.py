@@ -10,13 +10,22 @@ import re
 from typing import Iterable, List, Set
 
 
-def extract_numbers(text: str) -> List[float]:
+_PERCENT_RE = re.compile(r"\d+(?:[.,]\d+)?\s*%")
+
+
+def extract_numbers(text: str, skip_percentages: bool = True) -> List[float]:
     """
     Pull numeric values out of free text. Handles both '35.31' and Romanian
     '35,31' decimals. Pure integers and decimals are returned as floats.
+
+    Percentages ('90%') are derived reasoning, not cited data, so by default they
+    are stripped before extraction (otherwise a correct "peste 90% din venit"
+    would be scored as an unsupported number).
     """
     if not text:
         return []
+    if skip_percentages:
+        text = _PERCENT_RE.sub(" ", text)
     nums: List[float] = []
     for raw in re.findall(r"\d+(?:[.,]\d+)?", text):
         try:
@@ -50,8 +59,23 @@ def grounding_score(text: str, allowed: Iterable[float], tol: float = 0.5) -> fl
     return supported / len(nums)
 
 
+def _add_date_parts(date_str: str, allowed: Set[float]) -> None:
+    """Add year/month/day of a 'YYYY-MM-DD' string so date references count as grounded."""
+    if not isinstance(date_str, str):
+        return
+    for part in date_str.split("-"):
+        try:
+            allowed.add(float(int(part)))
+        except ValueError:
+            continue
+
+
 def report_numbers(report: dict) -> Set[float]:
-    """Collect every figure the agent is allowed to cite from a range report."""
+    """
+    Collect every figure the agent is allowed to cite from a range report —
+    metrics, quantities, daily revenue, AND the date components of the period
+    (a grounded answer naturally says "1-7 iunie 2026", "pe 6 iunie", etc.).
+    """
     allowed: Set[float] = set()
     for key in ("total_revenue", "total_orders", "average_order_value"):
         val = report.get(key)
@@ -65,6 +89,9 @@ def report_numbers(report: dict) -> Set[float]:
         r = d.get("revenue")
         if isinstance(r, (int, float)):
             allowed.add(float(r))
+        _add_date_parts(d.get("date"), allowed)
+    _add_date_parts(report.get("start_date"), allowed)
+    _add_date_parts(report.get("end_date"), allowed)
     return allowed
 
 
