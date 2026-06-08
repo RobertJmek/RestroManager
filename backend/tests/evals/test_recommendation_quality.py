@@ -5,6 +5,7 @@ Evaluates if AI suggests relevant dishes for expressed preferences.
 Metrics: Precision@3, Recall@10, NDCG@3, Category Diversity
 """
 
+import json
 import pytest
 from typing import Dict, List, Any
 from unittest.mock import patch
@@ -41,7 +42,7 @@ class TestRecommendationRelevance:
             async def mock_create(*args, **kwargs):
                 class MockChoice:
                     class Message:
-                        content = str(mock_response).replace("'", '"')
+                        content = json.dumps(mock_response)
                     message = Message()
                 class MockResp:
                     choices = [MockChoice()]
@@ -77,7 +78,7 @@ class TestRecommendationRelevance:
             async def mock_create(*args, **kwargs):
                 class MockChoice:
                     class Message:
-                        content = str(mock_response).replace("'", '"')
+                        content = json.dumps(mock_response)
                     message = Message()
                 class MockResp:
                     choices = [MockChoice()]
