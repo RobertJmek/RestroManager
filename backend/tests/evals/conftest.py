@@ -99,8 +99,67 @@ def mock_deepseek_client(mock_deepseek_vegan_response):
 
 @pytest.fixture(autouse=True)
 def reset_chat_sessions():
-    """Clear chat sessions before each test."""
-    from core.ai import _chat_sessions
+    """Clear chat sessions before each test (both customer and manager agents)."""
+    from core.ai import _chat_sessions, _insights_sessions
     _chat_sessions.clear()
+    _insights_sessions.clear()
     yield
     _chat_sessions.clear()
+    _insights_sessions.clear()
+
+
+# ---------------------------------------------------------------------------
+# Manager-side agents (insights + menu content) — fixtures & helpers
+# ---------------------------------------------------------------------------
+
+@pytest.fixture
+def mock_report() -> Dict:
+    """Standardized sales report for reproducible insights evaluations."""
+    return load_json("mock_report.json")
+
+
+@pytest.fixture
+def mock_menu_prices(mock_menu) -> List[Dict]:
+    """Menu price list in the shape the insights endpoint passes to the agent."""
+    return [
+        {
+            "name": item["name"],
+            "price": item["price"],
+            "is_available": item.get("is_available", True),
+            "category": item.get("category"),
+        }
+        for item in mock_menu
+    ]
+
+
+@pytest.fixture
+def mock_categories() -> List[str]:
+    """Existing categories used by the menu content agent."""
+    return ["Pizza", "Burgers", "Salads", "Desserts"]
+
+
+def make_mock_deepseek(content: str, capture: List[Dict] = None) -> MagicMock:
+    """
+    Build a mock DeepSeek client whose chat.completions.create returns `content`.
+    If `capture` is provided, each call's kwargs (incl. messages) are appended to
+    it so tests can assert what was actually sent in the prompt.
+    """
+    client = MagicMock()
+
+    async def _create(*args, **kwargs):
+        if capture is not None:
+            capture.append(kwargs)
+        resp = MagicMock()
+        resp.choices = [MagicMock()]
+        resp.choices[0].message.content = content
+        resp.choices[0].finish_reason = "stop"
+        return resp
+
+    client.chat.completions.create = _create
+    return client
+
+
+@pytest.fixture
+def mock_deepseek_factory():
+    """Expose make_mock_deepseek as a fixture for use inside tests."""
+    return make_mock_deepseek

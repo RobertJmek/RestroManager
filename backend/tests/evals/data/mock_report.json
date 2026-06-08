@@ -1,0 +1,16 @@
+{
+  "start_date": "2026-06-01",
+  "end_date": "2026-06-07",
+  "total_revenue": 4520.0,
+  "total_orders": 128,
+  "average_order_value": 35.31,
+  "top_items": [
+    {"name": "Margherita Pizza", "quantity_sold": 64},
+    {"name": "Classic Cheeseburger", "quantity_sold": 41},
+    {"name": "Caesar Salad", "quantity_sold": 33}
+  ],
+  "revenue_by_day": [
+    {"date": "2026-06-06", "revenue": 2100.0},
+    {"date": "2026-06-07", "revenue": 2420.0}
+  ]
+}

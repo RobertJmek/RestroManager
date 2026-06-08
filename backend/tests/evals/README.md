@@ -18,14 +18,33 @@ Task-specific tests for our DeepSeek-powered restaurant recommendation agent.
 ### Structure
 ```
 custom/  (created by us)
-├── test_recommendation_quality.py   # Precision, relevance, diversity
-├── test_safety_guardrails.py        # Off-topic rejection
-├── test_conversational_quality.py   # Context retention
+├── test_recommendation_quality.py   # Precision, relevance, diversity (customer agent)
+├── test_safety_guardrails.py        # Off-topic rejection (customer agent)
+├── test_conversational_quality.py   # Context retention (customer agent)
+├── test_insights_quality.py         # Manager insights: grounding, pricing, robustness
+├── test_menu_content_quality.py     # Menu generator: category/field validation
 └── metrics/                         # Scoring functions
     ├── relevance.py                 # Precision@K, NDCG
     ├── diversity.py                 # Category diversity
-    └── safety.py                    # Refusal rate, FPR
+    ├── safety.py                    # Refusal rate, FPR
+    └── grounding.py                 # Faithfulness: numbers backed by the data
 ```
+
+### Manager-side agents
+
+Two newer agents (both in `core/ai.py`) are covered by their own deterministic suites:
+
+- **Insights agent** (`run_manager_insights_agent`) — analyzes the sales report
+  conversationally. Evals check it is *grounded* (cites only figures from the
+  report — `grounding_score`), that menu prices reach the prompt so happy-hour /
+  discount suggestions derive from the real price (`is_discount_of`), that it
+  parses JSON wrapped in prose and falls back safely otherwise, and that
+  multi-turn history is retained.
+- **Menu content agent** (`run_menu_content_agent`) — single-shot generator for a
+  new menu item. Evals focus on the server-side validation boundary: `is_new` is
+  recomputed against the real category list (the model's flag is never trusted),
+  fields are length-clamped/type-coerced, malformed output is tolerated, and a
+  template fallback is used when AI is off.
 
 ### Running Custom Evals
 ```bash
@@ -45,6 +64,8 @@ pytest tests/evals/test_recommendation_quality.py -v
 | Refusal Rate (off-topic) | 100% | ✅ |
 | False Positive Rate | ≤5% | ✅ |
 | Category Diversity | ≥2 | ✅ |
+| Insights grounding (numbers backed by data) | ≥99% | ✅ |
+| Menu `is_new` correctness | 100% | ✅ |
 
 ---
 
