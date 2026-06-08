@@ -484,15 +484,59 @@ Get your API key at: https://platform.deepseek.com/
 
 ## 🧪 AI Agent Evaluation Framework
 
-RestroManager includes a comprehensive evaluation framework for testing the DeepSeek recommendation agent across multiple dimensions: recommendation quality, safety guardrails, and conversational coherence.
+RestroManager includes a comprehensive evaluation framework for the DeepSeek-powered agents, covering all three LLM agents: the **customer recommendation** agent, the **manager insights** agent, and the **menu content generator**. It spans recommendation quality, safety guardrails, conversational coherence, grounding/faithfulness, and output-contract validation.
+
+📖 Full details, metrics, and how-to: [`backend/tests/evals/README.md`](backend/tests/evals/README.md)
 
 ### What's Included
 
 | Component | Description | Test Count |
 |-----------|-------------|------------|
-| **Recommendation Quality** | Precision@K, NDCG, diversity metrics | 15+ tests |
+| **Recommendation Quality** | Precision@K, NDCG, diversity metrics (customer agent) | 15+ tests |
 | **Safety Guardrails** | Off-topic rejection, false positive rate | 20+ tests |
 | **Conversational Quality** | Context retention, session persistence | 15+ tests |
-| **Metrics** | Custom scoring functions (Precision, Recall, NDCG, Diversity) | 8 functions |
-| **Test Data** | Mock menu, 20 golden queries, 30 adversarial inputs | - |
+| **Manager Insights** | Grounding (no invented figures), price-suggestion correctness, robustness | 3 real + 9 regression |
+| **Menu Content Generator** | Output structure, server-side `is_new` recompute, field clamping | 2 real + 8 regression |
+| **Metrics** | Scoring functions: Precision, Recall, NDCG, Diversity, **Grounding** | 13 functions |
+| **Test Data** | Mock menu, mock sales report, 20 golden queries, 30 adversarial inputs | - |
+
+### Two levels: real evals vs. regression tests
+
+An *eval* measures the **live model's** output quality, so it calls the API and costs tokens — that's the point. To keep everyday test runs and CI free, the manager-agent evals are **opt-in**:
+
+| Level | Location | Calls model? | Cost | Runs by default |
+|-------|----------|--------------|------|-----------------|
+| **Real eval** (quality) | `backend/tests/evals/test_*_quality.py` | ✅ live | tokens | ❌ skipped unless `RUN_AI_EVALS=1` |
+| **Regression test** (plumbing) | `backend/tests/unit/core/test_*_agent.py` | ❌ mocked | free | ✅ with the unit suite |
+
+The regression tests pin the deterministic scaffolding (prompt assembly, JSON-parse resilience, multi-turn history, server-side validation, fallback); the real evals score the model itself (grounding, price reasoning, generated-content structure).
+
+### Running the evals
+
+```bash
+cd backend
+
+# Free, deterministic — runs on every CI build:
+pytest tests/unit tests/integration
+
+# Real evals — opt-in, consume API tokens (needs DEEPSEEK_API_KEY):
+RUN_AI_EVALS=1 pytest tests/evals/test_insights_quality.py -v -s
+RUN_AI_EVALS=1 pytest tests/evals/test_menu_content_quality.py -v -s
+RUN_AI_EVALS=1 pytest tests/evals          # full eval suite
+```
+
+### Key metric: grounding (faithfulness)
+
+The manager insights agent must answer **only** from the sales report and menu prices it is given — it must never invent figures. The `grounding` metric (`backend/tests/evals/metrics/grounding.py`) extracts every number from a response and checks each is backed by the data (report figures, quantities, daily revenue, period dates), ignoring derived percentages. A faithful summary scores **1.0**.
+
+### Latest results (2026-06-08, `deepseek-v4-flash`)
+
+| Suite | Result |
+|-------|--------|
+| Backend unit + integration | **111 passed** (no API) |
+| Frontend (vitest) | **29 passed** |
+| Manager-agent real evals (`RUN_AI_EVALS=1`) | **5 passed** — insights grounding **1.00**, happy-hour price derived from real menu price, menu generator structure valid |
+| Full real eval suite | **45 passed, 2 failed** — both pre-existing customer-agent eval issues (flaky mock JSON + live-model non-determinism), unrelated to the manager agents; documented in the [eval README](backend/tests/evals/README.md) |
+
+> Reproduce: `pytest tests/unit tests/integration` (free) and `RUN_AI_EVALS=1 pytest tests/evals` (tokens). Real-eval numbers vary slightly run-to-run since they exercise the live model.
 
