@@ -7,6 +7,7 @@ from api.users import router as users_router
 from api.menu import menu_router, category_router
 from api.reports import router as reports_router
 from api.recommendations import router as recommendations_router
+from api.insights import router as insights_router
 
 api_router = APIRouter()
 
@@ -19,3 +20,4 @@ api_router.include_router(menu_router)
 api_router.include_router(category_router)
 api_router.include_router(reports_router)
 api_router.include_router(recommendations_router)
+api_router.include_router(insights_router)

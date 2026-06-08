@@ -10,6 +10,7 @@ from models.user import User
 from models.menu_item import MenuItem
 from models.category import Category
 from core.security import require_role
+from core.ai import run_menu_content_agent
 
 menu_router = APIRouter(prefix="/menu", tags=["Menu"])
 category_router = APIRouter(prefix="/categories", tags=["Categories"])
@@ -53,6 +54,31 @@ class MenuItemRead(BaseModel):
     dietary_tags: Optional[str] = None
 
     model_config = {"from_attributes": True}
+
+
+class MenuContentRequest(BaseModel):
+    name: str = Field(min_length=2, max_length=100)
+    ingredients: Optional[str] = Field(default=None, max_length=1000)
+    price_hint: Optional[float] = Field(default=None, gt=0.0)
+
+
+class SuggestedCategory(BaseModel):
+    name: str
+    is_new: bool
+
+
+class PriceBand(BaseModel):
+    min: float
+    max: float
+
+
+class MenuContentResponse(BaseModel):
+    description: str
+    dietary_tags: str
+    suggested_category: SuggestedCategory
+    price_band: PriceBand
+    prep_time_minutes: Optional[int] = None
+    agent: str
 
 
 class CategoryCreate(BaseModel):
@@ -150,6 +176,28 @@ async def create_menu_item(
         prep_time_minutes=db_item.prep_time_minutes,
         dietary_tags=db_item.dietary_tags,
     )
+
+
+@menu_router.post("/ai-generate", response_model=MenuContentResponse)
+async def ai_generate_menu_content(
+    request: MenuContentRequest,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(require_role(["Manager"]))
+):
+    """
+    Generează conținut AI pentru un produs nou (descriere, etichete, categorie, preț).
+    Non-destructiv: doar returnează o sugestie — managerul confirmă și salvează separat.
+    """
+    existing_categories = [c.name for c in session.exec(select(Category)).all()]
+
+    suggestion = await run_menu_content_agent(
+        name=request.name,
+        ingredients=request.ingredients or "",
+        existing_categories=existing_categories,
+        price_hint=request.price_hint,
+    )
+
+    return MenuContentResponse(**suggestion)
 
 
 @menu_router.post("/upload-image")

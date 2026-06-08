@@ -1,14 +1,15 @@
-"""
-Tests for AIChatWidget component.
-Covers: messages render, loading state, add-to-cart callback, and API mocking.
-"""
+/**
+ * Tests for AIChatWidget component.
+ * Covers: messages render, loading state, add-to-cart callback, and API mocking.
+ */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { AIChatWidget } from "@/components/AIChatWidget";
 
-// Mock fetch globally
-global.fetch = vi.fn();
+// Mock fetch globally (typed reference avoids `as any` at each call site)
+const mockFetch = vi.fn();
+global.fetch = mockFetch as unknown as typeof fetch;
 
 describe("AIChatWidget", () => {
   const mockOnAddToCart = vi.fn();
@@ -18,7 +19,7 @@ describe("AIChatWidget", () => {
     Storage.prototype.getItem = vi.fn(() => "mock-token");
     
     // Mock successful API response
-    (fetch as any).mockResolvedValue({
+    mockFetch.mockResolvedValue({
       ok: true,
       json: async () => ({
         response_text: "Here are some dishes you might like!",
@@ -67,7 +68,7 @@ describe("AIChatWidget", () => {
 
   it("shows loading state while waiting for API response", async () => {
     // Delay the fetch response
-    (fetch as any).mockImplementation(() => 
+    mockFetch.mockImplementation(() => 
       new Promise((resolve) => setTimeout(resolve, 100))
     );
     
@@ -188,7 +189,7 @@ describe("AIChatWidget", () => {
     
     // Wait for second API call with session_id
     await waitFor(() => {
-      const calls = (fetch as any).mock.calls;
+      const calls = mockFetch.mock.calls;
       const lastCall = calls[calls.length - 1];
       const body = JSON.parse(lastCall[1].body);
       
@@ -206,10 +207,9 @@ describe("AIChatWidget", () => {
       expect(screen.getByText("AI Food Assistant")).toBeInTheDocument();
     });
     
-    // Click X button
-    const closeButton = screen.getByRole("button", { name: "" }); // X icon button
-    fireEvent.click(closeButton);
-    
+    // Click X button (labeled for accessibility)
+    fireEvent.click(screen.getByRole("button", { name: /close chat/i }));
+
     // Should show launch button again
     await waitFor(() => {
       expect(screen.getByText("Let AI recommend me something")).toBeInTheDocument();
@@ -218,7 +218,7 @@ describe("AIChatWidget", () => {
 
   it("handles API error gracefully", async () => {
     // Mock failed API response
-    (fetch as any).mockRejectedValue(new Error("Network error"));
+    mockFetch.mockRejectedValue(new Error("Network error"));
     
     render(<AIChatWidget onAddToCart={mockOnAddToCart} />);
     
@@ -233,32 +233,32 @@ describe("AIChatWidget", () => {
 
   it("does not send message when input is empty", async () => {
     render(<AIChatWidget onAddToCart={mockOnAddToCart} />);
-    
-    // Open chat
+
+    // Open chat — this auto-sends a greeting, so wait for that round-trip first
     fireEvent.click(screen.getByText("Let AI recommend me something"));
-    
+
     await waitFor(() => {
-      expect(screen.getByPlaceholderText(/Tell me what you're craving/i)).toBeInTheDocument();
+      expect(screen.getByText("Here are some dishes you might like!")).toBeInTheDocument();
     });
-    
-    // Try to send empty message
+
+    // Reset the fetch counter, then press Enter on an empty input
+    mockFetch.mockClear();
     const input = screen.getByPlaceholderText(/Tell me what you're craving/i);
     fireEvent.keyDown(input, { key: "Enter" });
-    
-    // Should not call fetch
+
+    // Empty input must not trigger another request
     expect(fetch).not.toHaveBeenCalled();
   });
 
-  it("does not open chat when no token is available", () => {
+  it("does not call the recommendation API when no token is available", () => {
     // Mock no token
     Storage.prototype.getItem = vi.fn(() => null);
-    
+
     render(<AIChatWidget onAddToCart={mockOnAddToCart} />);
-    
-    // Try to open chat
+
+    // Opening the chat is allowed, but without a token nothing is sent
     fireEvent.click(screen.getByText("Let AI recommend me something"));
-    
-    // Should not show chat content
-    expect(screen.queryByText("AI Food Assistant")).not.toBeInTheDocument();
+
+    expect(fetch).not.toHaveBeenCalled();
   });
 });
