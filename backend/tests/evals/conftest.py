@@ -136,30 +136,3 @@ def mock_menu_prices(mock_menu) -> List[Dict]:
 def mock_categories() -> List[str]:
     """Existing categories used by the menu content agent."""
     return ["Pizza", "Burgers", "Salads", "Desserts"]
-
-
-def make_mock_deepseek(content: str, capture: List[Dict] = None) -> MagicMock:
-    """
-    Build a mock DeepSeek client whose chat.completions.create returns `content`.
-    If `capture` is provided, each call's kwargs (incl. messages) are appended to
-    it so tests can assert what was actually sent in the prompt.
-    """
-    client = MagicMock()
-
-    async def _create(*args, **kwargs):
-        if capture is not None:
-            capture.append(kwargs)
-        resp = MagicMock()
-        resp.choices = [MagicMock()]
-        resp.choices[0].message.content = content
-        resp.choices[0].finish_reason = "stop"
-        return resp
-
-    client.chat.completions.create = _create
-    return client
-
-
-@pytest.fixture
-def mock_deepseek_factory():
-    """Expose make_mock_deepseek as a fixture for use inside tests."""
-    return make_mock_deepseek
