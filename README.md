@@ -31,6 +31,81 @@
 
 ---
 
+## 🎭 UML Use Case Diagram
+
+Diagrama de cazuri de utilizare mapează cei patru **actori** (Client/Guest, Waiter, Chef, Manager) la acțiunile pe care le pot executa în sistem. Relațiile `«include»` marchează un comportament obligatoriu reutilizat, iar `«extend»` un comportament opțional care extinde un caz de bază.
+
+```mermaid
+flowchart LR
+    %% Actori
+    CLIENT(["🧑 Client / Guest"])
+    WAITER(["🏃 Waiter"])
+    CHEF(["👨‍🍳 Chef"])
+    MANAGER(["👔 Manager"])
+
+    subgraph SYS ["🍽️ RestroManager — System Boundary"]
+        direction TB
+        UC_MENU(["Vizualizare meniu"])
+        UC_INSTR(["Adăugare instrucțiuni speciale"])
+        UC_ORDER(["Plasare comandă"])
+        UC_CALL(["Apel chelner"])
+        UC_BILL(["Cerere notă de plată"])
+        UC_AI(["Chat cu asistentul AI"])
+        UC_PAY(["Plată online · Stripe"])
+
+        UC_FLOOR(["Vizualizare hartă mese"])
+        UC_MANUAL(["Introducere comandă manuală"])
+        UC_SERVE(["Servire mâncare"])
+
+        UC_KDS(["Vizualizare KDS"])
+        UC_READY(["Marcare preparat «gata»"])
+
+        UC_MENUMGMT(["Gestionare meniu & prețuri"])
+        UC_CAT(["Gestionare categorii"])
+        UC_REPORT(["Generare raport vânzări"])
+
+        UC_AUTH(["Autentificare · JWT"])
+    end
+
+    %% Client / Guest
+    CLIENT --> UC_MENU
+    CLIENT --> UC_ORDER
+    CLIENT --> UC_CALL
+    CLIENT --> UC_BILL
+    CLIENT --> UC_AI
+    CLIENT --> UC_PAY
+
+    %% Waiter
+    WAITER --> UC_AUTH
+    WAITER --> UC_FLOOR
+    WAITER --> UC_MANUAL
+    WAITER --> UC_SERVE
+
+    %% Chef
+    CHEF --> UC_AUTH
+    CHEF --> UC_KDS
+    CHEF --> UC_READY
+
+    %% Manager
+    MANAGER --> UC_AUTH
+    MANAGER --> UC_MENUMGMT
+    MANAGER --> UC_CAT
+    MANAGER --> UC_REPORT
+
+    %% Relații UML «include» / «extend»
+    UC_ORDER -.->|"«include»"| UC_MENU
+    UC_INSTR -.->|"«extend»"| UC_ORDER
+    UC_PAY -.->|"«extend»"| UC_BILL
+    UC_MANUAL -.->|"«include»"| UC_ORDER
+
+    classDef actor fill:#0f172a,stroke:#38bdf8,color:#e2e8f0,font-weight:bold
+    classDef usecase fill:#1e293b,stroke:#a855f7,color:#e2e8f0
+    class CLIENT,WAITER,CHEF,MANAGER actor
+    class UC_MENU,UC_INSTR,UC_ORDER,UC_CALL,UC_BILL,UC_AI,UC_PAY,UC_FLOOR,UC_MANUAL,UC_SERVE,UC_KDS,UC_READY,UC_MENUMGMT,UC_CAT,UC_REPORT,UC_AUTH usecase
+```
+
+---
+
 ## 🛠️ Tech Stack
 To ensure a highly responsive, real-time experience while maintaining a clean and scalable codebase, RestroManager is built using a modern decoupled architecture:
 
@@ -241,6 +316,159 @@ erDiagram
     Order ||--|{ OrderItem : "contains"
     MenuItem ||--o{ OrderItem : "is included in"
 ```
+
+---
+
+## 🧩 UML Class Diagram (Domain Model)
+
+Diagrama de clase reflectă modelele SQLModel din `backend/models/`. Pe lângă atributele tipizate, sunt incluse metode de domeniu relevante și **specializările de rol** ale lui `User` (implementate în cod printr-un enum `UserRole` + RBAC, reprezentate aici ca moșteniri pentru a evidenția comportamentul specific fiecărui rol). Relațiile marchează **compoziția** (`Order *-- OrderItem`: un item nu poate exista fără comanda sa), **agregarea** (`Category o-- MenuItem`) și **asocierile** cu multiplicități.
+
+```mermaid
+classDiagram
+    direction LR
+
+    class User {
+        +int id
+        +String name
+        +String email
+        +String phone
+        +UserRole role
+        +bool is_active
+        +datetime created_at
+        -String hashed_password
+        +login() Token
+        +validate_phone() bool
+    }
+    class Guest {
+        +browseMenu()
+        +createOrder() Order
+        +callWaiter()
+        +requestBill()
+        +chatWithAI()
+    }
+    class Waiter {
+        +viewFloorMap()
+        +inputManualOrder() Order
+        +serveFood()
+    }
+    class Chef {
+        +viewKDS()
+        +markAsReady()
+    }
+    class Manager {
+        +manageMenu()
+        +addCategory()
+        +generateReport()
+    }
+
+    class Table {
+        +int id
+        +int number
+        +int capacity
+        +TableStatus status
+        +String qr_code_url
+        +String location
+        +int waiter_id
+        +updateStatus(TableStatus)
+        +assignWaiter(User)
+    }
+
+    class Category {
+        +int id
+        +String name
+        +String description
+    }
+
+    class MenuItem {
+        +int id
+        +String name
+        +String description
+        +int category_id
+        +float price
+        +String image_url
+        +String ingredients
+        +bool is_available
+        +int prep_time_minutes
+        +String dietary_tags
+        +updateAvailability(bool)
+    }
+
+    class Order {
+        +int id
+        +int table_id
+        +OrderStatus status
+        +float total_price
+        +datetime created_at
+        +String stripe_payment_id
+        +String special_requests
+        +addItem(MenuItem, int)
+        +calculateTotal() float
+        +updateStatus(OrderStatus)
+        +markAsPaid()
+    }
+
+    class OrderItem {
+        +int id
+        +int order_id
+        +int menu_item_id
+        +int quantity
+        +String special_instructions
+        +OrderItemStatus status
+        +markReadyForPickup()
+        +markServed()
+    }
+
+    class UserRole {
+        <<enumeration>>
+        Customer
+        Waiter
+        Chef
+        Manager
+    }
+    class TableStatus {
+        <<enumeration>>
+        free
+        occupied
+        waiting_for_food
+        bill_requested
+        ready
+    }
+    class OrderStatus {
+        <<enumeration>>
+        pending
+        ready
+        served
+        paid
+        completed
+    }
+    class OrderItemStatus {
+        <<enumeration>>
+        pending
+        ready_for_pickup
+        served
+    }
+
+    %% Specializări de rol (RBAC prin UserRole)
+    User <|-- Guest
+    User <|-- Waiter
+    User <|-- Chef
+    User <|-- Manager
+
+    %% Asocieri & multiplicități
+    User "0..1" --> "0..*" Table : serves / waiter_id
+    Table "1" --> "0..*" Order : places
+    Order "1" *-- "1..*" OrderItem : contains
+    MenuItem "1" --> "0..*" OrderItem : referenced by
+    Category "1" o-- "0..*" MenuItem : groups
+
+    %% Enum usage
+    User ..> UserRole
+    Table ..> TableStatus
+    Order ..> OrderStatus
+    OrderItem ..> OrderItemStatus
+```
+
+---
 
 ## � Fluxul unei Comenzi (Sequence Diagram)
 
