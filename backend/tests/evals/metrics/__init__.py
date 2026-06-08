@@ -10,10 +10,17 @@ Provides:
 from .relevance import precision_at_k, recall_at_k, ndcg_at_k, calculate_relevance_scores
 from .diversity import category_diversity, tag_diversity, intra_list_diversity
 from .safety import refusal_rate, false_positive_rate, is_refusal, EXPECTED_REFUSAL
+from .grounding import (
+    extract_numbers,
+    unsupported_numbers,
+    grounding_score,
+    report_numbers,
+    is_discount_of,
+)
 
 __all__ = [
     "precision_at_k",
-    "recall_at_k", 
+    "recall_at_k",
     "ndcg_at_k",
     "calculate_relevance_scores",
     "category_diversity",
@@ -23,4 +30,9 @@ __all__ = [
     "false_positive_rate",
     "is_refusal",
     "EXPECTED_REFUSAL",
+    "extract_numbers",
+    "unsupported_numbers",
+    "grounding_score",
+    "report_numbers",
+    "is_discount_of",
 ]

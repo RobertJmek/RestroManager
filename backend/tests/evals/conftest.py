@@ -99,8 +99,40 @@ def mock_deepseek_client(mock_deepseek_vegan_response):
 
 @pytest.fixture(autouse=True)
 def reset_chat_sessions():
-    """Clear chat sessions before each test."""
-    from core.ai import _chat_sessions
+    """Clear chat sessions before each test (both customer and manager agents)."""
+    from core.ai import _chat_sessions, _insights_sessions
     _chat_sessions.clear()
+    _insights_sessions.clear()
     yield
     _chat_sessions.clear()
+    _insights_sessions.clear()
+
+
+# ---------------------------------------------------------------------------
+# Manager-side agents (insights + menu content) — fixtures & helpers
+# ---------------------------------------------------------------------------
+
+@pytest.fixture
+def mock_report() -> Dict:
+    """Standardized sales report for reproducible insights evaluations."""
+    return load_json("mock_report.json")
+
+
+@pytest.fixture
+def mock_menu_prices(mock_menu) -> List[Dict]:
+    """Menu price list in the shape the insights endpoint passes to the agent."""
+    return [
+        {
+            "name": item["name"],
+            "price": item["price"],
+            "is_available": item.get("is_available", True),
+            "category": item.get("category"),
+        }
+        for item in mock_menu
+    ]
+
+
+@pytest.fixture
+def mock_categories() -> List[str]:
+    """Existing categories used by the menu content agent."""
+    return ["Pizza", "Burgers", "Salads", "Desserts"]
