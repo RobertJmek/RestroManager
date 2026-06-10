@@ -1,3 +1,4 @@
+import os
 import pytest
 from unittest.mock import MagicMock
 from sqlmodel import SQLModel, Session, create_engine
@@ -7,6 +8,17 @@ from db.session import get_session
 from core.security import get_current_guest, get_valid_user_or_guest
 from core.limiter import limiter
 from models.user import TokenData
+
+
+def pytest_collection_modifyitems(config, items):
+    """Marchează automat testele unit/integration după directorul în care se află,
+    ca `pytest -m unit` / `-m integration` să funcționeze. tests/evals/ rămâne nemarcat."""
+    for item in items:
+        test_path = str(item.fspath)
+        if f"{os.sep}unit{os.sep}" in test_path:
+            item.add_marker(pytest.mark.unit)
+        elif f"{os.sep}integration{os.sep}" in test_path:
+            item.add_marker(pytest.mark.integration)
 
 
 @pytest.fixture(autouse=True)
