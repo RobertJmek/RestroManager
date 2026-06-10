@@ -11,6 +11,19 @@ from models.category import Category
 from models.table import Table
 from models.menu_item import MenuItem
 from core.security import get_password_hash
+from core.config import settings
+
+def _require_seed_password(value: str | None, var_name: str) -> str:
+    """Returnează parola de seed sau oprește execuția dacă lipsește/e prea slabă.
+
+    Parolele NU mai sunt hardcodate (repo public) — trebuie furnizate prin .env.
+    """
+    if not value or len(value) < 8:
+        raise SystemExit(
+            f"❌ {var_name} nu este setată (sau are sub 8 caractere). "
+            "Adăugați parolele de seed în .env (vezi .env_example) înainte de a rula seed.py."
+        )
+    return value
 
 def init_db():
     print("Se creează tabelele în baza de date (dacă nu există deja)...")
@@ -37,9 +50,12 @@ def create_user_if_not_exists(session: Session, name: str, email: str, phone: st
 def seed_data():
     with Session(engine) as session:
         # 1. Utilizatori
-        create_user_if_not_exists(session, "Admin Manager", "manager@restro.com", "+40700111222", UserRole.manager, "Manager@RestroApp2024!")
-        create_user_if_not_exists(session, "Andrei Waiter", "waiter@restro.com", "+40700333444", UserRole.waiter, "Waiter@RestroApp2024!")
-        create_user_if_not_exists(session, "Chef Roberto", "chef@restro.com", "+40700555666", UserRole.chef, "Chef@RestroApp2024!")
+        create_user_if_not_exists(session, "Admin Manager", "manager@restro.com", "+40700111222", UserRole.manager,
+                                   _require_seed_password(settings.SEED_MANAGER_PASSWORD, "SEED_MANAGER_PASSWORD"))
+        create_user_if_not_exists(session, "Andrei Waiter", "waiter@restro.com", "+40700333444", UserRole.waiter,
+                                   _require_seed_password(settings.SEED_WAITER_PASSWORD, "SEED_WAITER_PASSWORD"))
+        create_user_if_not_exists(session, "Chef Roberto", "chef@restro.com", "+40700555666", UserRole.chef,
+                                   _require_seed_password(settings.SEED_CHEF_PASSWORD, "SEED_CHEF_PASSWORD"))
         
         session.commit()
 

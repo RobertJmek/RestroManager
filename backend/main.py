@@ -1,15 +1,22 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 
 # Importăm ruterele asamblate
 from api import api_router
 from api.websockets import router as websocket_router
+from core.limiter import limiter
 
 app = FastAPI(
     title="RestroManager API",
     description="Backend API for the RestroManager restaurant management system.",
     version="1.0.0",
 )
+
+# Rate limiting (slowapi) — protejează endpoint-urile de auth de brute-force.
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # Configure CORS
 app.add_middleware(

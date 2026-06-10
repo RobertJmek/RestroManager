@@ -3,8 +3,8 @@ from pydantic import BaseModel, Field
 from typing import List, Optional
 from sqlmodel import Session, select
 
-from core.security import get_valid_user_or_guest
-from models.user import TokenData
+from core.security import get_valid_user_or_guest, require_role
+from models.user import TokenData, User
 from core.websocket_manager import manager
 from core.ai import run_ai_kds_optimizer, run_ai_safety_agent
 from db.session import get_session
@@ -214,8 +214,8 @@ async def create_order(
 async def update_order_status(
     order_id: int,
     update: OrderStatusUpdate,
-    session: Session = Depends(get_session)
-    # Am eliminat require_role pentru a permite testelor de integrare să treacă (Issue #60)
+    session: Session = Depends(get_session),
+    current_user: User = Depends(require_role(["Chef", "Manager"]))
 ):
     """
     Bucătarul sau Managerul actualizează statusul unei comenzi.
@@ -250,7 +250,11 @@ async def update_order_status(
 
 
 @router.put("/items/{item_id}/ready")
-async def mark_item_ready(item_id: int, session: Session = Depends(get_session)):
+async def mark_item_ready(
+    item_id: int,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(require_role(["Chef", "Manager"]))
+):
     item = session.get(OrderItem, item_id)
     if not item:
         raise HTTPException(status_code=404, detail="Item not found")
@@ -278,19 +282,25 @@ async def mark_item_ready(item_id: int, session: Session = Depends(get_session))
 
 
 @router.put("/{order_id}/ready-for-pickup")
-async def mark_order_ready(order_id: int, session: Session = Depends(get_session)):
+async def mark_order_ready(
+    order_id: int,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(require_role(["Chef", "Manager"]))
+):
     order = session.get(Order, order_id)
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
-        
+
     items = session.exec(select(OrderItem).where(OrderItem.order_id == order_id)).all()
     for item in items:
         if item.status != OrderItemStatus.served:
             item.status = OrderItemStatus.ready_for_pickup
             session.add(item)
-        
+
     order.status = OrderStatus.ready
     table = session.get(Table, order.table_id)
+    if not table:
+        raise HTTPException(status_code=404, detail="Masa asociată nu a fost găsită")
     session.add(order)
     session.commit()
     
@@ -307,7 +317,11 @@ async def mark_order_ready(order_id: int, session: Session = Depends(get_session
 
 
 @router.put("/items/{item_id}/served")
-async def mark_item_served(item_id: int, session: Session = Depends(get_session)):
+async def mark_item_served(
+    item_id: int,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(require_role(["Waiter", "Manager"]))
+):
     item = session.get(OrderItem, item_id)
     if not item:
         raise HTTPException(status_code=404, detail="Item not found")
@@ -319,8 +333,9 @@ async def mark_item_served(item_id: int, session: Session = Depends(get_session)
 
 @router.post("/{order_id}/checkout")
 async def checkout_order(
-    order_id: int, 
-    session: Session = Depends(get_session)
+    order_id: int,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(require_role(["Waiter", "Manager"]))
 ):
     """
     Finalizează comanda și eliberează masa.

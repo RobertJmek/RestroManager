@@ -710,6 +710,128 @@ Get your API key at: https://platform.deepseek.com/
 
 ---
 
+## 🔒 Security
+
+Security is enforced server-side at every layer — the frontend is never trusted as a gatekeeper. The model is **stateless JWT + role-based access control (RBAC)**.
+
+### Authentication & Authorization
+
+| Mechanism | Implementation |
+|-----------|----------------|
+| **Token format** | JWT signed with **HS256** (`PyJWT`), 30-minute expiry (`ACCESS_TOKEN_EXPIRE_MINUTES`) |
+| **Login** | `POST /api/auth/login` issues a token carrying `sub` (email), `role`, and `user_id` |
+| **Guest access** | `POST /api/auth/guest-login/{table}` issues a short-lived **Guest** token with the `table_id` baked in — the table number is read from the *token*, never from the request body, so a guest cannot act on another table |
+| **RBAC** | `require_role([...])` dependency (`backend/core/security.py`) checks `current_user.role` on every protected route; mismatched role → **403**, missing/invalid token → **401** |
+| **Privilege escalation guard** | Public `register` always assigns the `Customer` role server-side — staff accounts (Waiter/Chef/Manager) can only be provisioned by an admin/seed, never via self-signup |
+| **WebSocket auth** | `/ws/{role}` validates the JWT from the query string and rejects the connection (close code `4001`) if the token's role doesn't match the requested channel |
+
+### Password & Secret Management
+
+- **Password hashing:** `bcrypt` with a per-password salt (`bcrypt.gensalt()`); plaintext passwords are never stored or logged. Minimum length 8 (enforced by the `UserCreate` schema).
+- **`SECRET_KEY` validation:** the app **refuses to boot** if `SECRET_KEY` is missing, under 32 characters, or a known placeholder (`backend/core/config.py`).
+- **No secrets in source:** only `.env_example` (placeholders) is committed; the real `.env` is git-ignored. Seed staff passwords are read from `SEED_MANAGER_PASSWORD` / `SEED_WAITER_PASSWORD` / `SEED_CHEF_PASSWORD` — `seed.py` aborts if they're unset.
+
+### Input Validation & Abuse Prevention
+
+| Surface | Protection |
+|---------|-----------|
+| **SQL injection** | All DB access goes through SQLModel/SQLAlchemy parametrized queries — no string-built SQL |
+| **Order totals** | Recomputed **server-side** from real menu prices; client-sent totals are never trusted |
+| **Image uploads** | Manager-only, `Content-Type` allowlist **plus magic-byte signature check** (defeats Content-Type spoofing), 10 MB size cap, re-encoded to WebP (`backend/api/menu.py`) |
+| **Brute-force** | `slowapi` rate limits on auth: **login 5/min, register 3/min, guest-login 10/min** (keyed by client IP → `429` on excess) |
+| **CORS** | Locked to the known frontend origins (`localhost:3000` + the Netlify production URL); credentials allowed only for those |
+
+### Known limitations & hardening notes
+
+- **JWT is stored in `localStorage`** on the client (convenient, but readable by any XSS). The app ships no XSS sinks (no `dangerouslySetInnerHTML`/`innerHTML`), which keeps the practical risk low; a production deployment would prefer `httpOnly` cookies + CSRF protection.
+- **Rate limiting is keyed by `request.client.host`.** Behind a reverse proxy, run uvicorn with `--proxy-headers --forwarded-allow-ips="*"` so the real client IP is used instead of the proxy's.
+- **No refresh tokens / token revocation list** — a leaked token is valid until it expires (30 min). Acceptable for this project's scope.
+
+---
+
+## 📡 API Reference
+
+All REST routes are mounted under **`/api`**; interactive docs (Swagger UI) are auto-generated at **`http://localhost:8000/docs`**. The **Access** column lists who may call each route:
+
+- **Public** — no token required.
+- **Guest** — a table guest token (from `guest-login`).
+- **Any auth** — any logged-in user (Customer/Waiter/Chef/Manager).
+- **Role names** — exactly those roles (everyone else gets `403`).
+
+### Authentication — `/api/auth` *(rate-limited)*
+
+| Method | Path | Access | Description |
+|--------|------|--------|-------------|
+| `POST` | `/api/auth/register` | Public | Register a new **Customer** account (3/min → 429) |
+| `POST` | `/api/auth/login` | Public | Authenticate, returns a JWT (5/min) |
+| `POST` | `/api/auth/guest-login/{table_number}` | Public | Issue a Guest token after a QR scan; validates the table exists (10/min) |
+
+### Users — `/api/users`
+
+| Method | Path | Access | Description |
+|--------|------|--------|-------------|
+| `GET` | `/api/users/me` | Any auth | Current user's profile |
+| `PUT` | `/api/users/me` | Any auth | Update own profile |
+
+### Menu & Categories — `/api/menu`, `/api/categories`
+
+| Method | Path | Access | Description |
+|--------|------|--------|-------------|
+| `GET` | `/api/menu` | Public | List menu items (with categories) |
+| `GET` | `/api/menu/{item_id}` | Public | Single menu item |
+| `POST` | `/api/menu` | Manager | Create a menu item |
+| `POST` | `/api/menu/ai-generate` | Manager | AI-assisted menu content draft |
+| `POST` | `/api/menu/upload-image` | Manager | Validate + optimize a dish image |
+| `PUT` | `/api/menu/{item_id}` | Manager | Update a menu item |
+| `DELETE` | `/api/menu/{item_id}` | Manager | Delete a menu item |
+| `GET` | `/api/categories` | Public | List categories |
+| `POST` | `/api/categories` | Manager | Create a category |
+| `PUT` | `/api/categories/{category_id}` | Manager | Update a category |
+| `DELETE` | `/api/categories/{category_id}` | Manager | Delete a category |
+
+### Orders — `/api/orders`
+
+| Method | Path | Access | Description |
+|--------|------|--------|-------------|
+| `POST` | `/api/orders` | Guest or any auth | Place an order (totals computed server-side) |
+| `PATCH` | `/api/orders/{order_id}/status` | Chef, Manager | Update order status |
+| `PUT` | `/api/orders/items/{item_id}/ready` | Chef, Manager | Mark a single item ready for pickup |
+| `PUT` | `/api/orders/{order_id}/ready-for-pickup` | Chef, Manager | Mark the whole order ready |
+| `PUT` | `/api/orders/items/{item_id}/served` | Waiter, Manager | Mark an item served |
+| `POST` | `/api/orders/{order_id}/checkout` | Waiter, Manager | Close the order and free the table |
+
+### Dashboards (RBAC) — `/api`
+
+| Method | Path | Access | Description |
+|--------|------|--------|-------------|
+| `GET` | `/api/waiter/tables` | Waiter, Manager | Floor map: all tables + status |
+| `PATCH` | `/api/waiter/tables/{table_id}/status` | Waiter, Manager | Change a table's status |
+| `GET` | `/api/waiter/tables/{table_id}/active-order` | Waiter, Manager | Active order for a table |
+| `PUT` | `/api/waiter/tables/{table_id}/claim` | Waiter | Claim a table |
+| `POST` | `/api/waiter/tables/{table_id}/orders` | Waiter | Waiter-entered order |
+| `POST` | `/api/tables/{table_number}/request-bill` | Guest | Request the bill |
+| `POST` | `/api/tables/{table_id}/close` | Waiter, Manager | Close a table after payment |
+| `GET` | `/api/chef/active-orders` | Chef, Manager | KDS queue of pending orders |
+| `GET` | `/api/manager/stats` | Manager | Aggregated dashboard stats |
+
+### Reports & AI — `/api/reports`, `/api/recommendations`, `/api/insights`
+
+| Method | Path | Access | Description |
+|--------|------|--------|-------------|
+| `GET` | `/api/reports/range` | Manager | Sales report for a date range |
+| `POST` | `/api/recommendations/chat` | Guest or any auth | Customer AI dish-recommendation chat |
+| `POST` | `/api/recommendations/chat/clear` | Guest or any auth | Reset the recommendation session |
+| `POST` | `/api/insights/chat` | Manager | Manager AI business-insights chat |
+| `POST` | `/api/insights/chat/clear` | Manager | Reset the insights session |
+
+### WebSocket — `/ws`
+
+| Endpoint | Access | Description |
+|----------|--------|-------------|
+| `WS /ws/{role}` | JWT in `?token=` (role must match channel) | Real-time channel per role; relays `NEW_ORDER`, `FOOD_READY`, `CALL_WAITER`, `BILL_REQUESTED` |
+
+---
+
 ## 🧪 AI Agent Evaluation Framework
 
 RestroManager includes a comprehensive evaluation framework for the DeepSeek-powered agents, covering all three LLM agents: the **customer recommendation** agent, the **manager insights** agent, and the **menu content generator**. It spans recommendation quality, safety guardrails, conversational coherence, grounding/faithfulness, and output-contract validation.
