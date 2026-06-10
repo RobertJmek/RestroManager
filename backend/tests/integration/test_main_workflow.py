@@ -9,7 +9,7 @@ def create_guest_token(table_id: int = 1):
         data={"role": "Guest", "table_id": table_id}
     )
 
-def test_complete_customer_journey(client, session):
+def test_complete_customer_journey(client, session, chef_headers, waiter_headers):
     # 1. SETUP: Masă, Categorie, Produs
     cat = Category(name="Băuturi")
     session.add(cat)
@@ -34,10 +34,13 @@ def test_complete_customer_journey(client, session):
     order_id = response.json()["order_id"]
 
     # 3. BUCĂTARUL SCHIMBĂ STATUSUL (Integration with Order Logic)
-    client.patch(f"/api/orders/{order_id}/status", json={"status": "ready"})
+    status_resp = client.patch(
+        f"/api/orders/{order_id}/status", json={"status": "ready"}, headers=chef_headers
+    )
+    assert status_resp.status_code == 200
 
-    # 4. CHECKOUT (Eliberare masă)
-    checkout_resp = client.post(f"/api/orders/{order_id}/checkout")
+    # 4. CHECKOUT (Eliberare masă — Chelnerul autentificat)
+    checkout_resp = client.post(f"/api/orders/{order_id}/checkout", headers=waiter_headers)
     assert checkout_resp.status_code == 200
 
     # 5. VERIFICARE FINALĂ DB

@@ -72,7 +72,7 @@ def test_create_order_full_integration(client, session):
     assert db_table.status == TableStatus.occupied
 
 # --- 3. INTEGRARE BUCĂTĂRIE (KDS) ---
-def test_kitchen_order_status_update(client, session):
+def test_kitchen_order_status_update(client, session, chef_headers):
     """Verifică dacă Bucătarul poate schimba statusul comenzii."""
     # Setup masă și comandă existentă
     table = Table(number=1, capacity=4, status=TableStatus.occupied)
@@ -84,16 +84,19 @@ def test_kitchen_order_status_update(client, session):
     session.add(test_order)
     session.commit()
 
-    # Simulăm Bucătarul care marchează comanda ca fiind gata (Ready)
-    # Notă: Dacă require_role e activ, testul ar putea cere headers de auth
-    response = client.patch(f"/api/orders/{test_order.id}/status", json={"status": "ready"})
-    
+    # Bucătarul (autentificat prin JWT) marchează comanda ca fiind gata (Ready)
+    response = client.patch(
+        f"/api/orders/{test_order.id}/status",
+        json={"status": "ready"},
+        headers=chef_headers,
+    )
+
     assert response.status_code == 200
     session.refresh(test_order)
     assert test_order.status == OrderStatus.ready
 
 # --- 4. FINALIZARE FLUX: CHECKOUT & ELIBERARE ---
-def test_checkout_and_cleanup_integration(client, session):
+def test_checkout_and_cleanup_integration(client, session, waiter_headers):
     """Verifică închiderea comenzii și eliberarea resurselor."""
     # Setup
     table = Table(number=1, capacity=4, status=TableStatus.occupied)
@@ -105,8 +108,8 @@ def test_checkout_and_cleanup_integration(client, session):
     session.add(test_order)
     session.commit()
 
-    # Executăm Checkout (Chelnerul închide masa)
-    response = client.post(f"/api/orders/{test_order.id}/checkout")
+    # Executăm Checkout (Chelnerul autentificat închide masa)
+    response = client.post(f"/api/orders/{test_order.id}/checkout", headers=waiter_headers)
     assert response.status_code == 200
     
     session.expire_all()
@@ -119,10 +122,9 @@ def test_checkout_and_cleanup_integration(client, session):
 
 # --- 5. INTEGRARE SECURITATE (ROLES) ---
 def test_security_unauthorized_access(client, session):
-    """Verifică dacă endpoint-urile protejate resping cererile fără drepturi."""
-    # Încercăm să actualizăm statusul unei comenzi inexistente 
-    # (Ar trebui să dea 401 înainte de 404 dacă securitatea e activă)
+    """Verifică dacă endpoint-urile protejate resping cererile fără token."""
+    # Fără header de autentificare, require_role trebuie să respingă cu 401
+    # (înainte de a ajunge la verificarea 404).
     response = client.patch("/api/orders/999/status", json={"status": "ready"})
-    
-    # Dacă ai require_role activat corect, acesta va returna 401
-    assert response.status_code in [401, 403, 404]
+
+    assert response.status_code == 401
