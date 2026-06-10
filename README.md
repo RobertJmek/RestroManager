@@ -762,7 +762,7 @@ All REST routes are mounted under **`/api`**; interactive docs (Swagger UI) are 
 
 | Method | Path | Access | Description |
 |--------|------|--------|-------------|
-| `POST` | `/api/auth/register` | Public | Register a new **Customer** account (5/min → 429) |
+| `POST` | `/api/auth/register` | Public | Register a new **Customer** account (3/min → 429) |
 | `POST` | `/api/auth/login` | Public | Authenticate, returns a JWT (5/min) |
 | `POST` | `/api/auth/guest-login/{table_number}` | Public | Issue a Guest token after a QR scan; validates the table exists (10/min) |
 
