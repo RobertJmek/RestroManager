@@ -22,6 +22,12 @@ class Settings(BaseSettings):
     DEEPSEEK_BASE_URL: str = "https://api.deepseek.com"
     USE_AI_RECOMMENDATIONS: bool = True
 
+    # Parole inițiale pentru utilizatorii de staff creați de seed.py.
+    # Nu au valori implicite — seed.py refuză să ruleze dacă lipsesc.
+    SEED_MANAGER_PASSWORD: str | None = None
+    SEED_WAITER_PASSWORD: str | None = None
+    SEED_CHEF_PASSWORD: str | None = None
+
     @field_validator("SECRET_KEY")
     @classmethod
     def validate_secret_key(cls, v: str) -> str:
