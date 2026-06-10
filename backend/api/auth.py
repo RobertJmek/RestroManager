@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlmodel import Session, select
 from datetime import timedelta
@@ -7,11 +7,13 @@ from db.session import get_session
 from models.user import User, UserCreate, UserRead, Token, UserRole
 from models.table import Table
 from core.security import get_password_hash, verify_password, create_access_token, settings
+from core.limiter import limiter
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
 @router.post("/register", response_model=UserRead, status_code=status.HTTP_201_CREATED)
-async def register(user_in: UserCreate, session: Session = Depends(get_session)):
+@limiter.limit("3/minute")
+async def register(request: Request, user_in: UserCreate, session: Session = Depends(get_session)):
     """
     Înregistrează un utilizator nou cu rolul Customer.
     Conturile de personal (Waiter, Chef, Manager) sunt gestionate de administratori.
@@ -46,7 +48,9 @@ async def register(user_in: UserCreate, session: Session = Depends(get_session))
     return db_user
 
 @router.post("/login", response_model=Token)
+@limiter.limit("5/minute")
 async def login(
+    request: Request,
     form_data: OAuth2PasswordRequestForm = Depends(),
     session: Session = Depends(get_session)
 ):
@@ -80,7 +84,8 @@ async def login(
     return {"access_token": access_token, "token_type": "bearer"}
 
 @router.post("/guest-login/{table_number}", response_model=Token)
-async def guest_login(table_number: int, session: Session = Depends(get_session)):
+@limiter.limit("10/minute")
+async def guest_login(request: Request, table_number: int, session: Session = Depends(get_session)):
     """
     Generare token pentru Guest pe baza scanării QR la masă.
     Verifică că masa există în baza de date înainte de a emite token-ul.

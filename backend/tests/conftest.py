@@ -5,7 +5,16 @@ from fastapi.testclient import TestClient
 from main import app
 from db.session import get_session
 from core.security import get_current_guest, get_valid_user_or_guest
+from core.limiter import limiter
 from models.user import TokenData
+
+
+@pytest.fixture(autouse=True)
+def _disable_rate_limiting():
+    """Dezactivează rate limiting-ul în teste (TestClient folosește un singur IP)."""
+    limiter.enabled = False
+    yield
+    limiter.enabled = True
 
 # Baza de date de test (SQLite)
 TEST_DATABASE_URL = "sqlite:///./test.db"
