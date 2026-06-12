@@ -1,5 +1,5 @@
 "use client"
-import { useEffect, useState, useCallback } from "react"
+import { useEffect, useState, useCallback, useRef } from "react"
 import UserProfileMenu from "../../components/ui/UserProfileMenu"
 import ClientRoleGuard from "../../components/ClientRoleGuard";
 import { apiRequest } from "@/lib/api";
@@ -31,14 +31,22 @@ function ChefContent() {
     fetchActiveOrders();
   }, [fetchActiveOrders]);
 
+  const [wsOnline, setWsOnline] = useState(false)
+  const wsRef = useRef<WebSocket | null>(null)
+
   // WebSocket pentru comenzi noi în timp real
-  useEffect(() => {
+  const connectWs = useCallback(() => {
     const token = localStorage.getItem("token");
     const wsUrl = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api")
       .replace("https://", "wss://")
       .replace("http://", "ws://")
       .replace("/api", "");
+    wsRef.current?.close();
     const ws = new WebSocket(`${wsUrl}/ws/chef?token=${encodeURIComponent(token ?? "")}`);
+    wsRef.current = ws;
+    ws.onopen = () => setWsOnline(true);
+    ws.onclose = () => setWsOnline(false);
+    ws.onerror = () => setWsOnline(false);
     ws.onmessage = (event) => {
       let payload;
       try {
@@ -59,8 +67,12 @@ function ChefContent() {
         });
       }
     };
-    return () => ws.close();
   }, []);
+
+  useEffect(() => {
+    connectWs();
+    return () => wsRef.current?.close();
+  }, [connectWs]);
 
   // Marchează toată comanda gata prin API (backend face și update DB + broadcast WS la Waiter)
   const markAsReady = useCallback(async (orderId: number) => {
@@ -99,7 +111,14 @@ function ChefContent() {
         <h1 className="text-4xl font-black text-orange-500 tracking-tight">KITCHEN DISPLAY SYSTEM</h1>
         <div className="flex items-center gap-6">
           <UserProfileMenu />
-          <div className="bg-slate-800 px-4 py-2 rounded-full text-sm border border-slate-700">Status: <span className="text-green-400">● LIVE</span></div>
+          <button
+            onClick={() => { if (!wsOnline) connectWs(); }}
+            disabled={wsOnline}
+            title={wsOnline ? "Conectat la server în timp real" : "Conexiune pierdută — click pentru reconectare"}
+            className={`px-4 py-2 rounded-full text-sm border transition-colors ${wsOnline ? "bg-slate-800 border-slate-700 cursor-default" : "bg-red-900/50 border-red-700 hover:bg-red-800/60 cursor-pointer"}`}
+          >
+            Status: <span className={wsOnline ? "text-green-400" : "text-red-400"}>{wsOnline ? "● LIVE" : "● OFFLINE — Reconectează"}</span>
+          </button>
         </div>
       </header>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
