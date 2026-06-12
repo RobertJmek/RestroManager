@@ -218,7 +218,7 @@ function CustomerContent() {
       if (response.ok) {
         const result = await response.json();
         showToast(`✅ Comanda a fost plasată! Total: ${cartTotal.toFixed(2)} RON`);
-        console.log("AI Priority:", result.ai_safety, "Order ID:", result.order_id);
+        console.log("Order ID:", result.order_id);
 
         setCart([]);
         setIsCartOpen(false);

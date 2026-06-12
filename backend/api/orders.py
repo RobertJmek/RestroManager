@@ -6,7 +6,6 @@ from sqlmodel import Session, select
 from core.security import get_valid_user_or_guest, require_role
 from models.user import TokenData, User
 from core.websocket_manager import manager
-from core.ai import run_ai_kds_optimizer, run_ai_safety_agent
 from db.session import get_session
 from models.order import Order, OrderStatus
 from models.order_item import OrderItem, OrderItemStatus
@@ -69,10 +68,6 @@ async def process_order_creation_logic(
         for ip in order.items
     )
 
-    all_instructions = " | ".join(i.special_instructions for i in order.items if i.special_instructions)
-    safety_priority = run_ai_safety_agent(all_instructions)
-    cooking_advice = run_ai_kds_optimizer([item.model_dump() for item in order.items])
-
     active_order = session.exec(
         select(Order)
         .where(Order.table_id == table.id)
@@ -131,10 +126,6 @@ async def process_order_creation_logic(
 
     payload = {
         "event": "NEW_ORDER",
-        "ai_metadata": {
-            "urgency": safety_priority,
-            "cooking_strategy": cooking_advice
-        },
         "data": {
             "id": db_order.id,
             "table_number": table.number,
@@ -151,8 +142,7 @@ async def process_order_creation_logic(
         })
 
     return {
-        "status": "Processed by AI and sent to KDS",
-        "ai_safety": safety_priority,
+        "status": "Sent to KDS",
         "table_id": table.number,
         "order_id": db_order.id,
         "items": new_items_responses

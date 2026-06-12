@@ -55,7 +55,7 @@ def test_create_order_as_guest(guest_client, mock_db_session):
     })
     
     assert response.status_code == 200
-    assert response.json()["status"] == "Processed by AI and sent to KDS"
+    assert response.json()["status"] == "Sent to KDS"
     assert response.json()["table_id"] == 5
     # Verify session.get was called for menu item lookup
     mock_db_session.get.assert_called_with(MenuItem, 1)
@@ -116,7 +116,7 @@ def test_create_order_as_waiter(waiter_client, mock_db_session):
     assert response.status_code == 200
     data = response.json()
     assert data["table_id"] == 3
-    assert data["status"] == "Processed by AI and sent to KDS"
+    assert data["status"] == "Sent to KDS"
     assert "items" in data
 
 def test_create_order_as_waiter_missing_table_id(waiter_client, mock_db_session):

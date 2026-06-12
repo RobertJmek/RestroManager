@@ -28,6 +28,7 @@
 * **US 11:** As a manager, I want to easily add, edit, or remove menu items and prices, so that I can keep the restaurant's offering updated in real-time without reprinting physical menus.
 * **US 12:** As a manager, I want to generate an end-of-day sales report, so that I can track total revenue and identify the best-selling menu items.
 * **US 13:** As a manager, I want to add categories in my UI so that the products are filtered as I wish in the menu.
+* **US 14:** As a manager, I want an AI assistant that turns my end-of-day sales report into plain-language insights I can ask follow-up questions about, so that I understand *why* the numbers moved without digging through raw figures myself.
 
 ---
 

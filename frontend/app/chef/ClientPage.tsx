@@ -9,10 +9,6 @@ type Order = {
   table_number: number
   items: { id?: number; name: string; quantity: number; status?: string; special_instructions?: string }[]
   notes: string
-  ai_metadata?: {
-    urgency: "NORMAL" | "CRITICAL"
-    cooking_strategy: string
-  }
 }
 
 function ChefContent() {
@@ -52,7 +48,7 @@ function ChefContent() {
         return;
       }
       if (payload.event === "NEW_ORDER") {
-        const newOrder: Order = { ...payload.data, ai_metadata: payload.ai_metadata };
+        const newOrder: Order = { ...payload.data };
         // Append new items if order exists, else prepend new order
         setOrders((prev) => {
           const exists = prev.find((o) => o.id === newOrder.id);
@@ -108,9 +104,8 @@ function ChefContent() {
       </header>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {orders.map((order) => (
-          <div key={order.id} className={`relative overflow-hidden border-2 p-5 rounded-xl transition-all ${order.ai_metadata?.urgency === "CRITICAL" ? "border-red-500 bg-red-950/20 animate-pulse" : "border-slate-700 bg-slate-800"}`}>
-            <div className="mb-4 bg-slate-900/50 p-2 rounded border border-slate-700"><p className="text-[10px] uppercase font-bold text-slate-400">AI Cooking Insight:</p><p className="text-xs text-blue-300 italic">{order.ai_metadata?.cooking_strategy || "Standard preparation"}</p></div>
-            <div className="flex justify-between items-start mb-4"><h2 className="text-2xl font-black">MASA #{order.table_number}</h2>{order.ai_metadata?.urgency === "CRITICAL" && <span className="bg-red-600 text-[10px] font-bold px-2 py-1 rounded shadow-lg">URGENT</span>}</div>
+          <div key={order.id} className="relative overflow-hidden border-2 border-slate-700 bg-slate-800 p-5 rounded-xl transition-all">
+            <div className="flex justify-between items-start mb-4"><h2 className="text-2xl font-black">MASA #{order.table_number}</h2></div>
             <ul className="space-y-3 mb-6">{order.items?.map((item, i) => (
               <li key={i} className={`flex flex-col border-b border-slate-700/50 pb-2 ${item.status === 'ready_for_pickup' ? 'opacity-50' : ''}`}>
                 <div className="flex justify-between items-center">

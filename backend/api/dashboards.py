@@ -43,17 +43,11 @@ class ChefOrderItemRead(BaseModel):
     special_instructions: Optional[str] = None
 
 
-class AiMetadata(BaseModel):
-    urgency: str
-    cooking_strategy: str
-
-
 class ChefOrderRead(BaseModel):
     id: int
     table_number: int
     items: List[ChefOrderItemRead]
     notes: str
-    ai_metadata: AiMetadata
 
 
 class WaiterOrderItemRead(BaseModel):
@@ -315,8 +309,6 @@ async def get_waiter_table_active_order(table_id: int, session: Session = Depend
 )
 async def get_chef_orders(session: Session = Depends(get_session)):
     """Returnează comenzile cu status 'pending' pentru KDS."""
-    from core.ai import run_ai_kds_optimizer, run_ai_safety_agent
-
     orders = session.exec(
         select(Order)
         .where(Order.status == OrderStatus.pending)
@@ -338,28 +330,22 @@ async def get_chef_orders(session: Session = Depends(get_session)):
             continue
 
         items = []
-        items_for_ai = []
         for oi in order_items:
             menu_item = session.get(MenuItem, oi.menu_item_id)
             if menu_item:
                 items.append(ChefOrderItemRead(
-                    id=oi.id, 
-                    name=menu_item.name, 
-                    quantity=oi.quantity, 
+                    id=oi.id,
+                    name=menu_item.name,
+                    quantity=oi.quantity,
                     status=oi.status.value,
                     special_instructions=oi.special_instructions
                 ))
-                items_for_ai.append({"prep_time": menu_item.prep_time_minutes or 10})
-
-        cooking_strategy = run_ai_kds_optimizer(items_for_ai)
-        urgency = run_ai_safety_agent(order.special_requests or "")
 
         result.append(ChefOrderRead(
             id=order.id,
             table_number=table_number,
             items=items,
             notes=order.special_requests or "",
-            ai_metadata=AiMetadata(urgency=urgency, cooking_strategy=cooking_strategy)
         ))
 
     return result
