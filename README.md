@@ -29,6 +29,7 @@
 * **US 12:** As a manager, I want to generate an end-of-day sales report, so that I can track total revenue and identify the best-selling menu items.
 * **US 13:** As a manager, I want to add categories in my UI so that the products are filtered as I wish in the menu.
 * **US 14:** As a manager, I want an AI assistant that turns my end-of-day sales report into plain-language insights I can ask follow-up questions about, so that I understand *why* the numbers moved without digging through raw figures myself.
+* **US 15:** As a manager, when I add a new menu item I want an AI agent to draft its description, dietary tags, a suggested category, and a sensible price range from just the dish name and ingredients, so that I can publish polished, consistent menu entries in seconds instead of writing each one by hand.
 
 ---
 
