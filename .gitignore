@@ -33,6 +33,8 @@ yarn.lock
 # Local Netlify folder
 .netlify
 netlify.toml
+.claude
+.anthropic
 
 AGENTS.md
 CLAUDE.md
