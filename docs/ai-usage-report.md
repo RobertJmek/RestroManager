@@ -83,32 +83,32 @@ Agenții AI au scurtat timpul de implementare pe partea de client, dar nu elimin
 
 Comunicarea în timp real a fost piesa centrală a contribuției mele.
 
-## Cum am folosit agenții AI
+## Ce tool-uri AI am folosit și cum
 
-Agentul AI l-am folosit la implementare și la debugging. Îi descriam fluxul dorit (ex. bucătarul marchează „Ready", chelnerul primește notificare) și ceream ajutor pentru ConnectionManager-ul din FastAPI, broadcast pe roluri și gestionarea notificărilor în frontend.
+În mare parte, ne-am împărțit între trei unelte, fiecare cu utilitatea ei:
+•	**ChatGPT și Google Gemini (în browser):** Le-am folosit ca pe niște colegi mai experimentați cu care stăteam de vorbă când nu înțelegeam cum funcționează o anumită chestie din documentația FastAPI sau când dădea React-ul erori ciudate pe stări și nu știam de unde să le apuc.
+•	**GitHub Copilot (integrat în editor):** L-am lăsat pornit în VS Code pentru auto-complete. A fost bun mai ales când aveam de scris cod repetitiv, structuri simple de rute sau când trebuia să generez rapid scheletul pentru vreo funcție.
 
-La bug-uri de sincronizare, descriam comportamentul greșit și foloseam agentul ca să identific unde se rupe lanțul: backend, WebSocket sau state-ul din React. Nu copiam tot ce genera, dar pornea de la o bază mai bună decât cititul sec al documentației.
+## Exemple concrete de task-uri
 
-## Exemple din task-urile mele
+**WebSocket Manager-ul cu broadcast pe roluri:** A fost primul meu task mare, unde trebuia să separ mesajele ca să meargă doar la chelneri sau doar la bucătari. Copilot m-a ajutat să generez rapid structura clasei de conexiuni și metodele de bază. Partea de securitate și verificarea token-ului JWT pe socket-uri a fost extinsă ulterior de Robert pe backend, eu rămânând concentrat pe logica de mesaje. 
 
-Primul task major a fost WebSocket Manager-ul cu broadcast pe roluri (chelner, bucătar). Agentul a ajutat la structurarea clasei de conexiuni. Autentificarea JWT pe socket-uri a fost ulterior întărită de Robert pe backend; la mine focusul a rămas pe fluxul de mesaje și pe broadcast.
+**Dashboard-urile de chelner și bucătar (KDS):** Eu am pus logica de bază în background, adică harta meselor, ecranul de bucătărie și cum sar notificările la evenimente. După aceea, interfețele au fost modificate și refăcute în mare parte de Robert, care s-a ocupat de design, gestionarea comenzilor pe KDS și fluxul de comandă pornit de chelner. Eu am rămas să am grijă ca trecerea datelor prin WebSockets să nu crape în spate. 
 
-Am pus baza pentru dashboard-urile chelnerului și bucătarului (harta meselor, KDS, notificări la evenimente). UI-ul și logica au fost apoi extinse și refactorizate în mare parte de Robert (restyling chelner, gestionare comenzi pe KDS, comandă inițiată de chelner). Eu am rămas focusat pe partea de sincronizare și pe corectitudinea stărilor, nu pe finisarea completă a interfețelor.
+**Epic 40 (sincronizarea fluxului de comandă):** Aici a fost destul de greu pentru că s-au schimbat statusurile la OrderItem și notificările, iar modificările au dat peste cap și clientul (Victor) și backend-ul (Robert). AI-ul m-a ajutat să urmăresc logic cum ar trebui să se schimbe stările în lanț, dar testarea finală tot manual a trebuit să o fac, deschizând câte două-trei tab-uri de browser deodată ca să văd dacă se trimit mesajele corect. 
 
-Un task important a fost Epic 40: sincronizarea fluxului de comandă, statusurile OrderItem și notificările WebSocket. Modificările au afectat direct partea de client (Victor) și backend-ul (Robert). Agentul a ajutat la urmărirea stărilor, dar validarea finală a necesitat teste manuale cu mai multe tab-uri deschise.
+**Teste de integrare:** Spre final, am scris teste în Pytest și am reparat și fluxul de checkout care pica la teste. AI-ul mi-a generat niște scenarii de pornire, dar multe au dat eroare din prima pentru că bucățile de cod simulate (mock-urile) sugerate de el nu se comportau deloc ca un WebSocket real. A trebuit să le modific manual ca să meargă. 
 
-Spre final am adăugat teste de integrare și am corectat fluxul de checkout în contextul testelor. Agentul a generat scenarii inițiale; unele au eșuat pentru că mock-urile nu reflectau comportamentul real al WebSocket-ului.
+## Ce a mers bine și ce mi s-a părut greu
 
-## Ce a mers bine și ce a fost mai greu
+**Ce a fost ok:** AI-ul chiar m-a salvat de mult timp pierdut pe Google sau prin documentația FastAPI când căutam cum se face un sistem de reconectare automată sau un broadcast curat. Copilot a fost și el util că scria repede codul plictisitor. 
 
-Agentul a redus timpul petrecut pe documentația FastAPI WebSocket și pe căutări pentru pattern-uri de broadcast și reconectare.
+**Ce a fost greu:** Partea de real-time e foarte păcătoasă și sensibilă la detalii. De multe ori, codul generat de Gemini sau ChatGPT părea perfect corect la prima vedere, dar când îl rulam, aplicația intra în bucle infinite de reconectare sau trimitea mesaje duplicate în rețea. Până nu deschideam eu manual două browsere diferite ca să testez live, nu aveam nicio siguranță. 
 
-Partea de real-time e sensibilă la inconsistențe minore. Codul generat funcționa uneori teoretic, dar în practică apăreau loop-uri de reconectare sau mesaje duplicate. Verificarea cu două browsere deschise simultan a rămas obligatorie.
-
-Când colegii schimbau API-ul sau autentificarea, codul generat cu AI devenea rapid depășit. A trebuit să actualizez contextul dat agentului din codul curent, nu din versiuni anterioare.
+O altă problemă a fost că atunci când colegii modificau ceva la API sau la logica de login, AI-ul nu știa asta, pentru că el nu vedea restul proiectului actualizat în timp real. Îmi dădea cod bazat pe versiuni vechi și trebuia să stau să-i dau eu copy-paste la fișierele noi ca să-i explic contextul. 
 
 ## Concluzii
 
-Pe zona de real-time, agentul AI a accelerat implementarea arhitecturii de bază, dar nu a înlocuit testarea riguroasă și comunicarea cu echipa.
+Pentru ce am avut eu de făcut pe partea de asincron și WebSockets, asistenții AI au fost foarte buni ca să pornesc la drum și să fac scheletul codului mai repede. Însă nu au cum să înlocuiască testele pe bune, atenția la logica aplicației și, mai ales, discuțiile din echipă. 
 
-În viitor l-aș folosi mai mult pentru diagnoză și mai puțin pentru generare masivă de cod pe fluxuri cu stări distribuite.
+Dacă ar fi să o iau de la capăt, i-am folosi mai degrabă când am de căutat de ce dă o eroare greu de înțeles (la diagnoză) și mai puțin ca să-mi genereze blocuri mari de cod de-a gata, pentru că la sisteme cu stări care se schimbă live mai mult încurcă. 
