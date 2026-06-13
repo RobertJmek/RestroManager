@@ -1,5 +1,5 @@
 "use client"
-import { useEffect, useState, useCallback } from "react"
+import { useEffect, useState, useCallback, useRef } from "react"
 import UserProfileMenu from "../../components/ui/UserProfileMenu"
 import ClientRoleGuard from "../../components/ClientRoleGuard";
 import { apiRequest } from "@/lib/api";
@@ -9,10 +9,6 @@ type Order = {
   table_number: number
   items: { id?: number; name: string; quantity: number; status?: string; special_instructions?: string }[]
   notes: string
-  ai_metadata?: {
-    urgency: "NORMAL" | "CRITICAL"
-    cooking_strategy: string
-  }
 }
 
 function ChefContent() {
@@ -35,14 +31,22 @@ function ChefContent() {
     fetchActiveOrders();
   }, [fetchActiveOrders]);
 
+  const [wsOnline, setWsOnline] = useState(false)
+  const wsRef = useRef<WebSocket | null>(null)
+
   // WebSocket pentru comenzi noi în timp real
-  useEffect(() => {
+  const connectWs = useCallback(() => {
     const token = localStorage.getItem("token");
     const wsUrl = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api")
       .replace("https://", "wss://")
       .replace("http://", "ws://")
       .replace("/api", "");
+    wsRef.current?.close();
     const ws = new WebSocket(`${wsUrl}/ws/chef?token=${encodeURIComponent(token ?? "")}`);
+    wsRef.current = ws;
+    ws.onopen = () => setWsOnline(true);
+    ws.onclose = () => setWsOnline(false);
+    ws.onerror = () => setWsOnline(false);
     ws.onmessage = (event) => {
       let payload;
       try {
@@ -52,7 +56,7 @@ function ChefContent() {
         return;
       }
       if (payload.event === "NEW_ORDER") {
-        const newOrder: Order = { ...payload.data, ai_metadata: payload.ai_metadata };
+        const newOrder: Order = { notes: "", ...payload.data };
         // Append new items if order exists, else prepend new order
         setOrders((prev) => {
           const exists = prev.find((o) => o.id === newOrder.id);
@@ -63,8 +67,12 @@ function ChefContent() {
         });
       }
     };
-    return () => ws.close();
   }, []);
+
+  useEffect(() => {
+    connectWs();
+    return () => wsRef.current?.close();
+  }, [connectWs]);
 
   // Marchează toată comanda gata prin API (backend face și update DB + broadcast WS la Waiter)
   const markAsReady = useCallback(async (orderId: number) => {
@@ -103,14 +111,20 @@ function ChefContent() {
         <h1 className="text-4xl font-black text-orange-500 tracking-tight">KITCHEN DISPLAY SYSTEM</h1>
         <div className="flex items-center gap-6">
           <UserProfileMenu />
-          <div className="bg-slate-800 px-4 py-2 rounded-full text-sm border border-slate-700">Status: <span className="text-green-400">● LIVE</span></div>
+          <button
+            onClick={() => { if (!wsOnline) connectWs(); }}
+            disabled={wsOnline}
+            title={wsOnline ? "Conectat la server în timp real" : "Conexiune pierdută — click pentru reconectare"}
+            className={`px-4 py-2 rounded-full text-sm border transition-colors ${wsOnline ? "bg-slate-800 border-slate-700 cursor-default" : "bg-red-900/50 border-red-700 hover:bg-red-800/60 cursor-pointer"}`}
+          >
+            Status: <span className={wsOnline ? "text-green-400" : "text-red-400"}>{wsOnline ? "● LIVE" : "● OFFLINE — Reconectează"}</span>
+          </button>
         </div>
       </header>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {orders.map((order) => (
-          <div key={order.id} className={`relative overflow-hidden border-2 p-5 rounded-xl transition-all ${order.ai_metadata?.urgency === "CRITICAL" ? "border-red-500 bg-red-950/20 animate-pulse" : "border-slate-700 bg-slate-800"}`}>
-            <div className="mb-4 bg-slate-900/50 p-2 rounded border border-slate-700"><p className="text-[10px] uppercase font-bold text-slate-400">AI Cooking Insight:</p><p className="text-xs text-blue-300 italic">{order.ai_metadata?.cooking_strategy || "Standard preparation"}</p></div>
-            <div className="flex justify-between items-start mb-4"><h2 className="text-2xl font-black">MASA #{order.table_number}</h2>{order.ai_metadata?.urgency === "CRITICAL" && <span className="bg-red-600 text-[10px] font-bold px-2 py-1 rounded shadow-lg">URGENT</span>}</div>
+          <div key={order.id} className="relative overflow-hidden border-2 border-slate-700 bg-slate-800 p-5 rounded-xl transition-all">
+            <div className="flex justify-between items-start mb-4"><h2 className="text-2xl font-black">MASA #{order.table_number}</h2></div>
             <ul className="space-y-3 mb-6">{order.items?.map((item, i) => (
               <li key={i} className={`flex flex-col border-b border-slate-700/50 pb-2 ${item.status === 'ready_for_pickup' ? 'opacity-50' : ''}`}>
                 <div className="flex justify-between items-center">

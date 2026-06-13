@@ -2,36 +2,14 @@ import json
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 from core.ai import (
-    run_ai_kds_optimizer,
-    run_ai_safety_agent,
     run_manager_insights_agent,
     run_menu_content_agent,
     clear_insights_session,
 )
 
-def test_run_ai_kds_optimizer_high_complexity():
-    items = [{"prep_time": 15}, {"prep_time": 15}]
-    result = run_ai_kds_optimizer(items)
-    assert result == "HIGH_COMPLEXITY - Start Prep Immediately"
-
-def test_run_ai_kds_optimizer_standard():
-    items = [{"prep_time": 10}, {"prep_time": 10}]
-    result = run_ai_kds_optimizer(items)
-    assert result == "STANDARD_PRIORITY"
-
-def test_run_ai_safety_agent_critical():
-    notes = "Fara alune, are alergie severa"
-    result = run_ai_safety_agent(notes)
-    assert result == "CRITICAL"
-
-def test_run_ai_safety_agent_normal():
-    notes = "Vreau mai mult sos"
-    result = run_ai_safety_agent(notes)
-    assert result == "NORMAL"
-
 
 # ============================================================================
-# AGENT AI 3: Manager Analytics Agent
+# AGENT AI 1: Manager Analytics Agent
 # ============================================================================
 
 SAMPLE_REPORT = {
@@ -115,7 +93,7 @@ async def test_insights_agent_falls_back_on_unparseable_response():
 
 
 # ============================================================================
-# AGENT AI 4: Menu Content Generator
+# AGENT AI 2: Menu Content Generator
 # ============================================================================
 
 @pytest.mark.asyncio

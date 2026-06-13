@@ -190,14 +190,23 @@ function WaiterContent() {
     }
   };
 
+  const [wsOnline, setWsOnline] = useState(false);
+  const wsRef = useRef<WebSocket | null>(null);
+
   // WebSocket
-  useEffect(() => {
+  const connectWs = useCallback(() => {
     const token = localStorage.getItem("token");
     const wsUrl = (API_URL)
       .replace("https://", "wss://")
       .replace("http://", "ws://")
       .replace("/api", "");
+    wsRef.current?.close();
     const socket = new WebSocket(`${wsUrl}/ws/waiter?token=${encodeURIComponent(token ?? "")}`);
+    wsRef.current = socket;
+
+    socket.onopen = () => setWsOnline(true);
+    socket.onclose = () => setWsOnline(false);
+    socket.onerror = () => setWsOnline(false);
 
     socket.onmessage = async (event) => {
       let data;
@@ -233,10 +242,12 @@ function WaiterContent() {
         fetchTables();
       }
     };
-
-    return () => socket.close();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [updateTableStatus, fetchTables]);
+
+  useEffect(() => {
+    connectWs();
+    return () => wsRef.current?.close();
+  }, [connectWs]);
 
   return (
     <div className="min-h-screen bg-slate-950 p-6 md:p-10 text-slate-100">
@@ -244,7 +255,14 @@ function WaiterContent() {
         <h1 className="text-3xl font-black text-blue-400 tracking-tight italic">WAITER DASHBOARD</h1>
         <div className="flex items-center gap-4">
           <UserProfileMenu />
-          <span className="flex items-center gap-1 text-xs font-bold bg-green-900/50 text-green-400 px-3 py-1 rounded-full border border-green-700">● SERVER ONLINE</span>
+          <button
+            onClick={() => { if (!wsOnline) connectWs(); }}
+            disabled={wsOnline}
+            title={wsOnline ? "Conectat la server în timp real" : "Conexiune pierdută — click pentru reconectare"}
+            className={`flex items-center gap-1 text-xs font-bold px-3 py-1 rounded-full border transition-colors ${wsOnline ? "bg-green-900/50 text-green-400 border-green-700 cursor-default" : "bg-red-900/50 text-red-400 border-red-700 hover:bg-red-800/60 cursor-pointer"}`}
+          >
+            {wsOnline ? "● SERVER ONLINE" : "● SERVER OFFLINE — Reconectează"}
+          </button>
         </div>
       </header>
 

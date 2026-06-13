@@ -61,9 +61,8 @@ def test_create_order_full_integration(client, session):
     )
     assert response.status_code == 200
     
-    # 2. Verificăm dacă AI-ul a procesat datele (verificăm structura răspunsului)
+    # 2. Verificăm structura răspunsului
     data = response.json()
-    assert "ai_safety" in data
     assert "order_id" in data
 
     # 3. Verificăm dacă masa a devenit ocupată automat
