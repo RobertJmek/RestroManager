@@ -6,6 +6,32 @@
 
 ---
 
+## 📋 Evaluare proiect — hartă pe barem
+
+Tabelul de mai jos indică, pentru fiecare criteriu MDS, unde se găsește livrabilul în acest repository. Toate punctele au fost realizate cu ajutorul unor tooluri de AI (vezi [raportul dedicat](docs/ai-usage-report.md)).
+
+### A. Implementare
+
+| Criteriu | Unde se găsește |
+|---|---|
+| Minim 2 agenți AI în produs (3 puncte) | **3 agenți DeepSeek** în [`backend/core/ai.py`](backend/core/ai.py): recomandare pentru client, *insights* pentru manager și generare de conținut de meniu — vezi [§ AI Recommendation Agent](#-ai-recommendation-agent) |
+| Aplicație full-stack + live demo | Next.js (`frontend/`) + FastAPI (`backend/`) + WebSocket real-time; rulează cu `docker-compose up --build` (vezi [Quick Start](#-quick-start-local-development)) |
+| Demo offline (YouTube) | *(link screencast — de adăugat de echipă)* |
+
+### B. Procesul de dezvoltare software cu AI
+
+| Criteriu (punctaj) | Unde se găsește |
+|---|---|
+| User stories (min 10) + backlog **(2p)** | [16 user stories](#-user-stories) în README; backlog gestionat ca [GitHub Issues](https://github.com/RobertJmek/RestroManager/issues?q=is%3Aissue) |
+| Diagrame UML / arhitectură / workflow **(1p)** | [Use Case](#-uml-use-case-diagram) · [Component](#-arhitectura-sistemului-component-diagram) · [ER / DB Schema](#-database-schema) · [Class](#-uml-class-diagram-domain-model) · [Sequence](#-fluxul-unei-comenzi-sequence-diagram) · [State](#-ciclul-de-viață-al-comenzii-state-diagram) |
+| Source control: branch, merge/rebase, PR, min 5 commits/student **(1p)** | [PR-uri merged](https://github.com/RobertJmek/RestroManager/pulls?q=is%3Apr+is%3Amerged) (#26 → #80), branch-uri per-feature, merge & rebase; ~145 commit-uri, repartiție pe echipă în [raportul AI](docs/ai-usage-report.md) |
+| Teste automate + evals pentru agenți **(2p)** | Backend [`backend/tests/`](backend/tests/) (unit + integration), frontend [`frontend/__tests__/`](frontend/__tests__/) (vitest), evals pentru agenți AI în [`backend/tests/evals/`](backend/tests/evals/) — vezi [§ AI Agent Evaluation Framework](#-ai-agent-evaluation-framework) |
+| Raportare bug + rezolvare prin PR **(1p)** | Bug raportat ca Issue [#54](https://github.com/RobertJmek/RestroManager/issues/54) / [#56](https://github.com/RobertJmek/RestroManager/issues/56) (preparate servite reveneau în KDS) → rezolvat prin PR [#57](https://github.com/RobertJmek/RestroManager/pull/57) și [#64](https://github.com/RobertJmek/RestroManager/pull/64) *(Bugfix/integration fixes)* |
+| Pipeline CI/CD **(1p)** | GitHub Actions [`.github/workflows/ci.yml`](.github/workflows/ci.yml) (teste backend + coverage, build frontend); CD continuu pe Netlify la push pe `main` |
+| Raport despre folosirea toolurilor de AI **(2p)** | [`docs/ai-usage-report.md`](docs/ai-usage-report.md) — per membru, cu link-uri la commit-uri |
+
+---
+
 ## 👤 User Stories
 
 ### 📱 For the Customer
