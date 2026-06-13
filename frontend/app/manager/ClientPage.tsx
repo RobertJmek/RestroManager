@@ -59,6 +59,7 @@ export default function ManagerPage() {
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [stats, setStats] = useState<ManagerStats | null>(null);
+  const [statsPeriod, setStatsPeriod] = useState<"today" | "week" | "all">("today");
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<MenuItem | null>(null);
@@ -113,16 +114,14 @@ export default function ManagerPage() {
     setLoading(true);
     setError(null);
     try {
-      const [menuRes, catRes, statsRes] = await Promise.all([
+      const [menuRes, catRes] = await Promise.all([
         apiRequest("/menu"),
         apiRequest("/categories"),
-        apiRequest("/manager/stats"),
       ]);
       if (!menuRes.ok) throw new Error("Eroare la încărcarea meniului");
       if (!catRes.ok) throw new Error("Eroare la încărcarea categoriilor");
       setMenuItems(await menuRes.json());
       setCategories(await catRes.json());
-      if (statsRes.ok) setStats(await statsRes.json());
     } catch (err) {
       setError(err instanceof Error ? err.message : "Eroare necunoscută");
     } finally {
@@ -130,9 +129,20 @@ export default function ManagerPage() {
     }
   }, []);
 
+  // Statistici de sus — separate de loadData fiindcă se reîncarcă la schimbarea
+  // intervalului (Azi / Săptămână / Tot), nu doar la mount.
+  const loadStats = useCallback(async () => {
+    const res = await apiRequest(`/manager/stats?period=${statsPeriod}`);
+    if (res.ok) setStats(await res.json());
+  }, [statsPeriod]);
+
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  useEffect(() => {
+    loadStats();
+  }, [loadStats]);
 
   function resetForm() {
     setFormName("");
@@ -468,10 +478,24 @@ export default function ManagerPage() {
           <Button className="bg-green-600 hover:bg-green-500 font-bold" onClick={handleAddNew}>+ Adaugă Produs Nou</Button>
         </div>
 
+        <div className="flex items-center gap-2 mb-4">
+          {([["today", "Azi"], ["week", "Săptămâna"], ["all", "Tot"]] as const).map(([key, label]) => (
+            <Button
+              key={key}
+              onClick={() => setStatsPeriod(key)}
+              className={statsPeriod === key
+                ? "bg-green-600 hover:bg-green-500 font-bold"
+                : "bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium"}
+            >
+              {label}
+            </Button>
+          ))}
+        </div>
+
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
-          <Card className="bg-slate-900 border-slate-800"><CardHeader><CardTitle className="text-slate-400 text-sm uppercase">Încasări Totale</CardTitle></CardHeader><CardContent><p className="text-3xl font-bold text-green-400">{stats ? `${stats.total_revenue.toFixed(2)} RON` : "—"}</p></CardContent></Card>
-          <Card className="bg-slate-900 border-slate-800"><CardHeader><CardTitle className="text-slate-400 text-sm uppercase">Comenzi Totale</CardTitle></CardHeader><CardContent><p className="text-3xl font-bold text-blue-400">{stats ? stats.total_orders : "—"}</p></CardContent></Card>
-          <Card className="bg-slate-900 border-slate-800"><CardHeader><CardTitle className="text-slate-400 text-sm uppercase">Produse în Meniu</CardTitle></CardHeader><CardContent><p className="text-3xl font-bold text-green-400">{stats ? stats.menu_items_count : menuItems.length}</p></CardContent></Card>
+          <Card className="bg-slate-900 border-slate-800"><CardHeader><CardTitle className="text-slate-400 text-sm uppercase">Încasări · {{ today: "Azi", week: "Săptămâna", all: "Tot" }[statsPeriod]}</CardTitle></CardHeader><CardContent><p className="text-3xl font-bold text-green-400">{stats ? `${stats.total_revenue.toFixed(2)} RON` : "—"}</p></CardContent></Card>
+          <Card className="bg-slate-900 border-slate-800"><CardHeader><CardTitle className="text-slate-400 text-sm uppercase">Comenzi · {{ today: "Azi", week: "Săptămâna", all: "Tot" }[statsPeriod]}</CardTitle></CardHeader><CardContent><p className="text-3xl font-bold text-blue-400">{stats ? stats.total_orders : "—"}</p></CardContent></Card>
+          <Card className="bg-slate-900 border-slate-800"><CardHeader><CardTitle className="text-slate-400 text-sm uppercase">Produse în Meniu</CardTitle></CardHeader><CardContent><p className="text-3xl font-bold text-green-400">{menuItems.length}</p></CardContent></Card>
         </div>
 
         {loading && <div className="text-center py-12 text-slate-400 text-lg">Se încarcă meniul...</div>}

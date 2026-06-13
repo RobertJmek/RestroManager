@@ -1,4 +1,5 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from datetime import datetime, timedelta, timezone
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlmodel import Session, select
 from typing import List, Optional
 from pydantic import BaseModel
@@ -356,9 +357,30 @@ async def get_chef_orders(session: Session = Depends(get_session)):
     response_model=ManagerStats,
     dependencies=[Depends(require_role(["Manager"]))]
 )
-async def get_manager_stats(session: Session = Depends(get_session)):
-    """Returnează statistici agregate din DB pentru dashboard-ul managerului."""
-    orders = session.exec(select(Order)).all()
+async def get_manager_stats(
+    period: str = Query(default="today", pattern="^(today|week|all)$"),
+    session: Session = Depends(get_session),
+):
+    """Returnează statistici agregate din DB pentru dashboard-ul managerului.
+
+    `period` scopează încasările și numărul de comenzi pe interval (granițe la
+    miezul nopții UTC, ca în reports.py); `menu_items_count` rămâne global:
+      - today: doar ziua curentă
+      - week:  ultimele 7 zile (azi + 6 zile în urmă)
+      - all:   tot istoricul
+    """
+    stmt = select(Order)
+    today = datetime.now(timezone.utc).date()
+    if period == "today":
+        cutoff = datetime(today.year, today.month, today.day)
+        stmt = stmt.where(Order.created_at >= cutoff)
+    elif period == "week":
+        start = today - timedelta(days=6)
+        cutoff = datetime(start.year, start.month, start.day)
+        stmt = stmt.where(Order.created_at >= cutoff)
+    # "all" → fără filtru de timp
+
+    orders = session.exec(stmt).all()
     total_revenue = round(sum(o.total_price for o in orders), 2)
     total_orders = len(orders)
     menu_items_count = len(session.exec(select(MenuItem)).all())
