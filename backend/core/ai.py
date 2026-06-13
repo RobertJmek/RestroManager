@@ -109,30 +109,41 @@ Respond in this JSON format:
         # Add current user message
         messages.append({"role": "user", "content": message})
 
-        # Call DeepSeek API (OpenAI-compatible) with full conversation context
-        response = await client.chat.completions.create(
-            model=settings.DEEPSEEK_MODEL,
-            messages=messages,
-            temperature=0.4,
-            # 800 era prea puțin: la cereri în română cu mai multe feluri, JSON-ul
-            # se tăia la mijloc și parsarea pica → fallback. 1500 lasă spațiu să se
-            # închidă obiectul (output-ul e oricum plafonat la 3 feluri prin prompt).
-            max_tokens=1500,
-            # JSON mode: pe conversațiile multi-tur modelul „aluneca" în proză liberă
-            # (răspunsul pe turul 2+ nu mai conținea JSON → parse fail → fallback).
-            # Forțează emiterea unui obiect JSON valid. Promptul conține deja "JSON".
-            response_format={"type": "json_object"},
-        )
+        # Call DeepSeek API (OpenAI-compatible) with full conversation context.
+        # Chiar și cu JSON mode, modelul scapă ocazional un răspuns gol/netparsabil
+        # pe câte un tur (mai ales multi-tur). Reîncercăm o dată înainte de fallback:
+        # un singur retry rezolvă marea majoritate a acestor rateuri intermitente.
+        result = None
+        for attempt in range(2):
+            response = await client.chat.completions.create(
+                model=settings.DEEPSEEK_MODEL,
+                messages=messages,
+                temperature=0.4,
+                # 800 era prea puțin: la cereri în română cu mai multe feluri, JSON-ul
+                # se tăia la mijloc și parsarea pica → fallback. 1500 lasă spațiu să se
+                # închidă obiectul (output-ul e oricum plafonat la 3 feluri prin prompt).
+                max_tokens=1500,
+                # JSON mode: pe conversațiile multi-tur modelul „aluneca" în proză liberă
+                # (răspunsul pe turul 2+ nu mai conținea JSON → parse fail → fallback).
+                # Forțează emiterea unui obiect JSON valid. Promptul conține deja "JSON".
+                response_format={"type": "json_object"},
+            )
 
-        # Parse JSON robustly (modelul adaugă des proză în jurul JSON-ului, mai ales
-        # la cereri complexe). _extract_json izolează obiectul {...} din răspuns.
-        raw_content = response.choices[0].message.content or ""
-        result = _extract_json(raw_content)
-        if not result or not isinstance(result, dict):
+            # Parse JSON robustly (modelul adaugă des proză în jurul JSON-ului, mai ales
+            # la cereri complexe). _extract_json izolează obiectul {...} din răspuns.
+            raw_content = response.choices[0].message.content or ""
+            parsed = _extract_json(raw_content)
+            if parsed and isinstance(parsed, dict):
+                result = parsed
+                break
+
+        if result is None:
             # SAFETY: Return safe fallback instead of arbitrary model output
-            # This prevents off-topic/unsafe content from leaking through
+            # This prevents off-topic/unsafe content from leaking through.
+            # Formulare neutră, fără salut — un salut („what are you in the mood for?")
+            # în mijlocul conversației pare că botul și-a șters memoria și a resetat.
             result = {
-                "response_text": "I'm here to help you find great dishes from our menu! What type of food are you in the mood for today?",
+                "response_text": "Sorry, I didn't quite catch that — could you rephrase? I can suggest dishes or drink pairings that fit what you're after.",
                 "suggested_dishes": [],
                 "follow_up_question": None
             }
