@@ -11,6 +11,11 @@ from core.config import settings
 _deepseek_client = None
 _chat_sessions: Dict[str, List[Dict]] = {}
 
+# Câte feluri poate conține o sugestie. Nu mai impunem un număr fix (1 fel sau 5,
+# depinde de cerere) — lăsăm agentul să decidă. Plafonul e doar o plasă de
+# siguranță ca modelul să nu întoarcă tot meniul deodată.
+MAX_SUGGESTED_DISHES = 8
+
 def get_deepseek_client():
     """Initialize DeepSeek client lazily (OpenAI-compatible API)"""
     global _deepseek_client
@@ -81,10 +86,10 @@ CONVERSATION STYLE:
 ================================================================================
 - Be warm, conversational, and friendly (not robotic)
 - Ask 1-2 clarifying questions before making recommendations
-- When recommending, suggest 2-3 specific dishes with clear reasoning
+- When recommending, suggest only the dishes that genuinely fit the request, each with clear reasoning
 - Include dish prices and brief descriptions
 - Guide customers toward placing an order
-- Keep response_text concise (max ~4 sentences) and include AT MOST 3 dishes in suggested_dishes
+- Keep response_text concise (max ~4 sentences). In suggested_dishes include exactly the dishes you actually recommend — there is no fixed count, it may be one or several; pick only what truly fits and never pad the list
 - Reply in the same language the customer used
 
 Respond in this JSON format:
@@ -152,7 +157,8 @@ Respond in this JSON format:
         valid_menu_ids = {item["id"] for item in menu_items}
         menu_lookup = {item["id"]: item for item in menu_items}
         
-        raw_suggestions = result.get("suggested_dishes", [])[:3]  # Limit to max 3
+        # Fără număr fix de sugestii — doar plafonul de siguranță (vezi MAX_SUGGESTED_DISHES).
+        raw_suggestions = result.get("suggested_dishes", [])[:MAX_SUGGESTED_DISHES]
         validated_dishes = []
         
         for suggestion in raw_suggestions:
@@ -208,7 +214,7 @@ def _fallback_chat_response(message: str, menu_items: List[Dict], session_id: st
     keywords = message_lower.split()
 
     matched = []
-    for item in menu_items[:10]:  # Check more items
+    for item in menu_items:  # Scan the whole menu; MAX_SUGGESTED_DISHES caps the result
         name_lower = item.get("name", "").lower()
         tags_lower = " ".join(item.get("dietary_tags") or []).lower()
         desc_lower = item.get("description", "").lower()
@@ -256,7 +262,7 @@ def _fallback_chat_response(message: str, menu_items: List[Dict], session_id: st
     
     return {
         "response_text": response_text,
-        "suggested_dishes": matched[:3],
+        "suggested_dishes": matched[:MAX_SUGGESTED_DISHES],
         "follow_up_question": "Would you like more details about any of these?",
         "session_id": session_id,
         "agent": "fallback"
