@@ -86,7 +86,9 @@ Comunicarea în timp real a fost piesa centrală a contribuției mele.
 ## Ce tool-uri AI am folosit și cum
 
 În mare parte, ne-am împărțit între trei unelte, fiecare cu utilitatea ei:
+
 •	**ChatGPT și Google Gemini (în browser):** Le-am folosit ca pe niște colegi mai experimentați cu care stăteam de vorbă când nu înțelegeam cum funcționează o anumită chestie din documentația FastAPI sau când dădea React-ul erori ciudate pe stări și nu știam de unde să le apuc.
+
 •	**GitHub Copilot (integrat în editor):** L-am lăsat pornit în VS Code pentru auto-complete. A fost bun mai ales când aveam de scris cod repetitiv, structuri simple de rute sau când trebuia să generez rapid scheletul pentru vreo funcție.
 
 ## Exemple concrete de task-uri
