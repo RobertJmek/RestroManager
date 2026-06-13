@@ -38,3 +38,6 @@ netlify.toml
 
 AGENTS.md
 CLAUDE.md
+
+# Local-only dev helper for seeding demo orders (not committed)
+backend/seed_orders.py
