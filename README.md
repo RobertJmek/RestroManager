@@ -53,7 +53,6 @@ flowchart LR
         UC_CALL(["Apel chelner"])
         UC_BILL(["Cerere notă de plată"])
         UC_AI(["Chat cu asistentul AI"])
-        UC_PAY(["Plată online · Stripe"])
 
         UC_FLOOR(["Vizualizare hartă mese"])
         UC_MANUAL(["Introducere comandă manuală"])
@@ -75,7 +74,6 @@ flowchart LR
     CLIENT --> UC_CALL
     CLIENT --> UC_BILL
     CLIENT --> UC_AI
-    CLIENT --> UC_PAY
 
     %% Waiter
     WAITER --> UC_AUTH
@@ -97,13 +95,12 @@ flowchart LR
     %% Relații UML «include» / «extend»
     UC_ORDER -.->|"«include»"| UC_MENU
     UC_INSTR -.->|"«extend»"| UC_ORDER
-    UC_PAY -.->|"«extend»"| UC_BILL
     UC_MANUAL -.->|"«include»"| UC_ORDER
 
     classDef actor fill:#0f172a,stroke:#38bdf8,color:#e2e8f0,font-weight:bold
     classDef usecase fill:#1e293b,stroke:#a855f7,color:#e2e8f0
     class CLIENT,WAITER,CHEF,MANAGER actor
-    class UC_MENU,UC_INSTR,UC_ORDER,UC_CALL,UC_BILL,UC_AI,UC_PAY,UC_FLOOR,UC_MANUAL,UC_SERVE,UC_KDS,UC_READY,UC_MENUMGMT,UC_CAT,UC_REPORT,UC_AUTH usecase
+    class UC_MENU,UC_INSTR,UC_ORDER,UC_CALL,UC_BILL,UC_AI,UC_FLOOR,UC_MANUAL,UC_SERVE,UC_KDS,UC_READY,UC_MENUMGMT,UC_CAT,UC_REPORT,UC_AUTH usecase
 ```
 
 ---
@@ -209,10 +206,6 @@ flowchart TB
         PG[("6 tabele:\nuser · table · category\nmenu_item · order · order_item")]
     end
 
-    subgraph EXT ["🌐 Servicii Externe"]
-        STRIPE["💳 Stripe API\nPlăți online"]
-    end
-
     %% Frontend → Backend (REST)
     API_LIB -->|"REST  HTTP/JSON"| Routers
     GUARD -->|"Validare token JWT"| SEC
@@ -225,9 +218,6 @@ flowchart TB
     %% Backend → DB
     Models <-->|"SQLModel Queries"| PG
 
-    %% Backend → External
-    R_ORD -->|"Checkout Session"| STRIPE
-
     %% WebSocket broadcasts back to frontend
     WSM -.->|"NEW_ORDER · FOOD_READY\nCALL_WAITER · BILL_REQ"| WS_CLIENT
 
@@ -235,12 +225,10 @@ flowchart TB
     classDef feBox fill:#1e293b,stroke:#3b82f6,color:#e2e8f0
     classDef beBox fill:#1e293b,stroke:#f97316,color:#e2e8f0
     classDef dbBox fill:#1e293b,stroke:#22c55e,color:#e2e8f0
-    classDef extBox fill:#1e293b,stroke:#a855f7,color:#e2e8f0
 
     class FE feBox
     class BE beBox
     class DB dbBox
-    class EXT extBox
 ```
 
 **Cum funcționează fluxul:** Fiecare rol (Customer, Waiter, Chef, Manager) accesează o vizualizare dedicată în frontend-ul Next.js. Toate cererile HTTP trec prin modulul centralizat `lib/api.ts` care injectează automat token-ul JWT și gestionează expirarea sesiunii. Routerele FastAPI procesează logica de business, validează permisiunile prin middleware-ul RBAC, și accesează baza de date prin modelele SQLModel.
@@ -299,7 +287,6 @@ erDiagram
         string status "Enum: pending, ready, served, paid"
         float total_price
         datetime created_at
-        string stripe_payment_id
         string special_requests
     }
 
@@ -401,7 +388,6 @@ classDiagram
         +OrderStatus status
         +float total_price
         +datetime created_at
-        +String stripe_payment_id
         +String special_requests
         +addItem(MenuItem, int)
         +calculateTotal() float
