@@ -199,7 +199,7 @@ def _fallback_chat_response(message: str, menu_items: List[Dict], session_id: st
     matched = []
     for item in menu_items[:10]:  # Check more items
         name_lower = item.get("name", "").lower()
-        tags_lower = " ".join(item.get("dietary_tags", [])).lower()
+        tags_lower = " ".join(item.get("dietary_tags") or []).lower()
         desc_lower = item.get("description", "").lower()
         
         # Score from name, tags, and description
