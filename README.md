@@ -118,7 +118,7 @@ To ensure a highly responsive, real-time experience while maintaining a clean an
 * **Framework:** FastAPI (Python 3.12)
 * **ORM:** SQLModel (SQLAlchemy + Pydantic)
 * **Database:** PostgreSQL (psycopg2-binary)
-* **Migrations:** Alembic
+* **Schema:** SQLModel `metadata.create_all()` via `seed.py` (no migration tool)
 * **Authentication:** JWT (PyJWT) + bcrypt
 * **Testing:** pytest with async support
 * **Configuration:** pydantic-settings
@@ -136,7 +136,7 @@ To ensure a highly responsive, real-time experience while maintaining a clean an
 
 ## 📐 Arhitectura Sistemului (Component Diagram)
 
-RestroManager folosește o **arhitectură decuplată pe 3 straturi**: un frontend Next.js cu vizualizări per rol, un backend FastAPI modular (routere REST + WebSocket real-time), și o bază de date PostgreSQL accesată prin SQLModel ORM. Cererile standard (meniu, comenzi, rapoarte) folosesc **REST API**, iar evenimentele sensibile la timp (notificări bucătărie, apel chelner, status masă) trec prin **WebSocket** pentru actualizări instantanee. Securitatea este asigurată prin **JWT Role-Based Auth** (Guest, Waiter, Chef, Manager), iar doi **agenți AI** analizează fiecare comandă pentru prioritizare și detecție de alergeni. Un **agent AI de recomandare** (DeepSeek V4) oferă sugestii personalizate clienților printr-un chat interactiv.
+RestroManager folosește o **arhitectură decuplată pe 3 straturi**: un frontend Next.js cu vizualizări per rol, un backend FastAPI modular (routere REST + WebSocket real-time), și o bază de date PostgreSQL accesată prin SQLModel ORM. Cererile standard (meniu, comenzi, rapoarte) folosesc **REST API**, iar evenimentele sensibile la timp (notificări bucătărie, apel chelner, status masă) trec prin **WebSocket** pentru actualizări instantanee. Securitatea este asigurată prin **JWT Role-Based Auth** (Guest, Waiter, Chef, Manager). Trei **agenți AI** DeepSeek (API compatibil OpenAI) asistă utilizatorii: un agent de **recomandare** oferă sugestii personalizate clienților printr-un chat, un agent de **insights** transformă raportul de vânzări al managerului în concluzii pe înțeles, iar un agent de **conținut meniu** redactează descrieri pentru produsele noi.
 
 ```mermaid
 flowchart TB
@@ -177,7 +177,7 @@ flowchart TB
         subgraph Core ["Core Services"]
             direction LR
             SEC["🔑 Security\nJWT HS256 · bcrypt\nOAuth2 · RBAC"]
-            AI["🤖 AI Agents\nKDS Optimizer\nSafety & Allergy"]
+            AI["🤖 AI Agents (DeepSeek)\nRecommend · Insights\nMenu Content"]
             WSM["⚡ WebSocket\nManager\nBroadcast per rol"]
             IMG["🖼️ Image\nProcessing\nValidare · Base64"]
         end
@@ -202,7 +202,7 @@ flowchart TB
         Routers --> Core
         Routers --> Models
         WS_EP --> WSM
-        R_ORD --> AI
+        R_MENU --> AI
     end
 
     subgraph DB ["🐘 PostgreSQL (Supabase)"]
@@ -245,7 +245,7 @@ flowchart TB
 
 **Cum funcționează fluxul:** Fiecare rol (Customer, Waiter, Chef, Manager) accesează o vizualizare dedicată în frontend-ul Next.js. Toate cererile HTTP trec prin modulul centralizat `lib/api.ts` care injectează automat token-ul JWT și gestionează expirarea sesiunii. Routerele FastAPI procesează logica de business, validează permisiunile prin middleware-ul RBAC, și accesează baza de date prin modelele SQLModel.
 
-**Comunicarea real-time:** La plasarea unei comenzi, doi agenți AI (KDS Optimizer și Safety Agent) analizează comanda, apoi WebSocket Manager-ul broadcast-ează evenimentul `NEW_ORDER` către Chef KDS. Când bucătarul marchează un preparat ca „Gata", evenimentul `FOOD_READY_FOR_PICKUP` ajunge instant la chelnerul asignat. Clientul poate de asemenea trimite `CALL_WAITER` sau `BILL_REQUESTED` prin canalul WebSocket dedicat.
+**Comunicarea real-time:** La plasarea unei comenzi, WebSocket Manager-ul broadcast-ează evenimentul `NEW_ORDER` către Chef KDS. Când bucătarul marchează un preparat ca „Gata", evenimentul `FOOD_READY_FOR_PICKUP` ajunge instant la chelnerul asignat. Clientul poate de asemenea trimite `CALL_WAITER` sau `BILL_REQUESTED` prin canalul WebSocket dedicat.
 
 ## 🗄️ Database Schema
 
@@ -482,7 +482,6 @@ sequenceDiagram
     participant C as 📱 Customer
     participant FE as 🖥️ Frontend<br/>(Next.js)
     participant API as ⚙️ FastAPI<br/>REST API
-    participant AI as 🤖 AI Agents
     participant DB as 🐘 PostgreSQL
     participant WS as ⚡ WebSocket<br/>Manager
     participant CHEF as 👨‍🍳 Chef KDS
@@ -508,14 +507,10 @@ sequenceDiagram
     C->>FE: Apasă "Plasează Comanda"
     FE->>API: POST /orders {items: [{menu_item_id, qty}...]}
 
-    Note over API,AI: 3️⃣ PROCESARE AI & PERSISTARE
+    Note over API,DB: 3️⃣ PERSISTARE COMANDĂ
 
     API->>DB: Validează toate menu_item_id-urile
     DB-->>API: ✅ Toate produsele există
-    API->>AI: run_ai_safety_agent(instrucțiuni)
-    AI-->>API: urgency: "NORMAL" sau "CRITICAL"
-    API->>AI: run_ai_kds_optimizer(items)
-    AI-->>API: cooking_strategy: "STANDARD" sau "HIGH_COMPLEXITY"
     API->>DB: INSERT Order + OrderItems (status: pending)
     API->>DB: UPDATE Table SET status = 'occupied'
     DB-->>API: ✅ Comanda #42 creată
@@ -523,10 +518,10 @@ sequenceDiagram
     Note over API,WAIT: 4️⃣ NOTIFICARE REAL-TIME
 
     API->>WS: broadcast_to_role("chef", NEW_ORDER)
-    WS-->>CHEF: 🔔 {event: NEW_ORDER, table: 3, items, ai_metadata}
+    WS-->>CHEF: 🔔 {event: NEW_ORDER, table: 3, items}
     API->>WS: broadcast_to_role("waiter", TABLE_OCCUPIED)
     WS-->>WAIT: 🔔 {event: TABLE_OCCUPIED, table: 3}
-    API-->>FE: ✅ {order_id: 42, ai_safety: "NORMAL"}
+    API-->>FE: ✅ {order_id: 42}
     FE->>C: Redirect → /customer/success
 
     Note over CHEF,WAIT: 5️⃣ PREPARARE & SERVIRE
@@ -552,7 +547,7 @@ sequenceDiagram
 
 **Pașii 1–2 (Autentificare & Meniu):** Clientul scanează codul QR de pe masă, care deschide aplicația cu parametrul `table_id`. Frontend-ul obține automat un JWT token de tip Guest (fără cont/parolă), apoi afișează meniul grupat pe categorii. La plasarea comenzii, frontend-ul trimite `menu_item_id` (nu numele) pentru fiecare produs, iar backend-ul calculează totalul server-side din prețurile reale din DB.
 
-**Pașii 3–4 (AI & Notificări):** Backend-ul rulează doi agenți AI pe fiecare comandă: Safety Agent detectează alergeni/urgențe din instrucțiunile speciale, iar KDS Optimizer evaluează complexitatea preparării. Comanda este apoi broadcast-ată în timp real prin WebSocket către Chef KDS (cu metadatele AI) și către Waiter POS (notificare de masă ocupată).
+**Pașii 3–4 (Persistare & Notificări):** Backend-ul validează `menu_item_id`-urile, recalculează totalul server-side din prețurile reale, persistă comanda și marchează masa ocupată. Comanda este apoi broadcast-ată în timp real prin WebSocket către Chef KDS și către Waiter POS (notificare de masă ocupată).
 
 **Pașii 5–6 (Servire & Plată):** Bucătarul marchează fiecare preparat individual ca „Gata", iar chelnerul primește notificarea instant și confirmă servirea. La final, clientul poate cere nota direct din aplicație, iar chelnerul închide masa — resetând statusul la „free" pentru următorii clienți.
 
