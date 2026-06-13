@@ -1,28 +1,26 @@
-
 # Git
 .git
 .gitignore
 
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-.venv/
-.venv
+# Python  (** so nested backend/ dirs are matched too)
+**/__pycache__/
+**/*.py[cod]
+**/*$py.class
+**/*.so
+**/.venv/
 .env
 .env_example
-.pytest_cache/
-.coverage
-htmlcov/
+**/.pytest_cache/
+**/.coverage
+**/htmlcov/
 
-# Node / Next.js
-node_modules/
-.next/
-out/
-build/
-npm-debug.log*
-package-lock.json
+# Node / Next.js  (** so frontend/node_modules + frontend/.next are excluded —
+# without this they're ~1.5 GB of build context shipped on every build)
+**/node_modules/
+**/.next/
+**/out/
+**/build/
+**/npm-debug.log*
 yarn.lock
 
 # Docker
@@ -32,7 +30,7 @@ docker-compose.yml
 .dockerignore
 
 # IDEs / OS
-.DS_Store
+**/.DS_Store
 .idea/
 .vscode/
 *.swp
@@ -56,10 +54,10 @@ temp/
 backend/seed.py
 
 # Test files
-test_*
-*_test.py
-*.test.ts
-*.test.tsx
+**/test_*
+**/*_test.py
+**/*.test.ts
+**/*.test.tsx
 
 # Temporary files
 *.tmp
