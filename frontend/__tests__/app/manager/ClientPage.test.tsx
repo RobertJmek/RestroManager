@@ -51,7 +51,7 @@ describe('Manager Dashboard', () => {
           json: () => Promise.resolve([{ id: 1, name: 'Food' }])
         })
       }
-      if (url === '/manager/stats') {
+      if (url.startsWith('/manager/stats')) {
         return Promise.resolve({
           ok: true,
           json: () => Promise.resolve({ total_revenue: 500, total_orders: 10, menu_items_count: 1 })
@@ -103,7 +103,7 @@ describe('Manager Dashboard', () => {
       if (url === '/categories') {
         return Promise.resolve(ok([{ id: 1, name: 'Food' }]))
       }
-      if (url === '/manager/stats') {
+      if (url.startsWith('/manager/stats')) {
         return Promise.resolve(ok({ total_revenue: 0, total_orders: 0, menu_items_count: 1 }))
       }
       if (url === '/menu/ai-generate') {
