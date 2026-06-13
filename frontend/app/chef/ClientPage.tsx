@@ -56,7 +56,7 @@ function ChefContent() {
         return;
       }
       if (payload.event === "NEW_ORDER") {
-        const newOrder: Order = { ...payload.data };
+        const newOrder: Order = { notes: "", ...payload.data };
         // Append new items if order exists, else prepend new order
         setOrders((prev) => {
           const exists = prev.find((o) => o.id === newOrder.id);
