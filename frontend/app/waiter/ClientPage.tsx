@@ -125,7 +125,6 @@ function WaiterContent() {
         })
       });
       if (res.ok) {
-        const orderData = await res.json();
         setCart({});
         setIsMenuMode(false);
         // Refresh tables and update selectedTable to get new waiter_id and status
@@ -134,8 +133,13 @@ function WaiterContent() {
         if (updatedTable) {
           setSelectedTable(updatedTable);
         }
-        // Set the newly created order as active
-        setActiveOrder(orderData);
+        // Re-fetch the full active order: POST /orders only returns the items just
+        // added, so we'd otherwise drop items already on the order until a manual
+        // refresh. This endpoint returns every item of the active order.
+        const orderRes = await apiRequest(`/waiter/tables/${selectedTable.id}/active-order`);
+        if (orderRes.ok) {
+          setActiveOrder(await orderRes.json());
+        }
       } else {
         const error = await res.json();
         console.error("Eroare la crearea comenzii:", error);
