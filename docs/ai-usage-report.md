@@ -43,29 +43,29 @@ Dependența de AI poate da impresia că un feature e gata când, de fapt, lipse�
 
 # Calomfirescu Victor — Customer Champion
 
-Contribuția mea activă a fost în principal în aprilie–mai 2026, pe partea de client.
+## Introducere
+
+RestroManager este un sistem de management pentru restaurante, dezvoltat în echipă de trei persoane. Am avut rolul de „Customer Champion” și m-am ocupat de partea de client: catalog digital, coș de cumpărături, checkout, butonul de chemare a chelnerului și pregătirea fluxului de plăți (inclusiv format de prețuri compatibil cu Stripe).
 
 ## Cum am folosit agenții AI
 
-Am folosit un agent AI integrat în editor aproape zilnic. Îl foloseam pentru componente React pe interfața clientului, pentru endpoint-uri legate de meniu și comenzi și pentru erorile din consolă. Îi descriam task-ul în limbaj natural, apoi verificam codul generat și îl adaptam la structura existentă din proiect.
+Am folosit diferiți agenți AI integrați în editor (precum Cursor sau Antigravity) în funcție de task și de numărul de tokenuri disponibile. Ca „fun fact” (probabil deja știut) nu este mereu bine să faci „economie” folosind un model „mai ieftin” care folosește mai puține tokenuri (adică este mai slab într-o oarecare măsură), deoarece pentru taskuri mari el va folosi mai multe tokenuri decât un model „mai scump” făcând diferite greșeli, iar apoi reparându-le, consumând astfel mai mult când tragem linie. Pe Cursor rezolvam problemele de finețe cu Codex 5.3 (modelul meu preferat), iar pe Antigravity rezolvam taskurile lungi și interminabile (folosind Gemini 3.5 Flash sau Opus 4.6 pentru crearea planului de lucru). Workflow-ul de lucru pentru fiecare task consta în: crearea planului de lucru folosind agenți AI, revizuirea manuală a planului de lucru pentru a mă asigura că nu lipsește nimic, modificarea micilor greșeli, executarea planului de către agenți AI iar apoi o verificare făcută mai întâi de AI iar apoi manual de către mine în pagina web testând diferite posibile buguri.
 
 La început, agentul a ajutat la setup-ul frontend: layout-uri, navigare între cele patru aplicații (client, chelner, bucătar, manager) și componente shadcn/ui. Mai târziu l-am folosit mai des pentru debugging și pentru teste (unitare și Playwright), nu doar pentru cod nou.
 
 ## Exemple din task-urile mele
 
-Am implementat catalogul digital cu carduri de produse și un dialog pentru instrucțiuni speciale (ex. „fără ceapă"). Agentul a ajutat la structurarea componentelor și la conectarea cu backend-ul; detaliile de stil și UX le-am ajustat manual.
+Am implementat catalogul digital cu carduri de produse și un dialog pentru instrucțiuni speciale (ex. „fără ceapă”). Agentul a ajutat la structurarea componentelor și la conectarea cu backend-ul; detaliile de stil și UX le-am ajustat manual.
 
 La coș și checkout, am lucrat la logica de adăugare/eliminare produse, trimiterea comenzii către backend și ecranul de confirmare. Am setat și precizia de două zecimale pentru prețuri, în pregătirea unei integrări Stripe complete (care nu a fost finalizată în întregime în versiunea curentă). Aici AI-ul a accelerat logica de bază, dar unele sugestii nu se potriveau cu schema comenzilor de pe backend.
 
-Am adăugat butonul „Call Waiter", care trimite un eveniment WebSocket către chelnerul asociat mesei. A fost un task mic, dar a necesitat înțelegerea conexiunii WS deja implementate de colegi.
+Am adăugat butonul „Call Waiter”, care trimite un eveniment WebSocket către chelnerul asociat mesei. A fost un task mic, dar a necesitat înțelegerea conexiunii WS deja implementate de colegi.
 
 Am lucrat și la personalizarea comenzilor la nivel de produs (Epic 6), plus câteva bugfix-uri de integrare: izolarea logout-ului clientului ca să nu afecteze personalul, filtrarea produselor servite din KDS și un fix pe reconnect WebSocket. Acestea au depășit zona mea inițială, iar agentul a fost util mai ales pentru a urmări fluxul de date.
 
 Spre final am contribuit la teste unitare (backend și frontend) și la teste Playwright pentru interfața clientului. Agentul a generat scenarii repetitive; o parte a testelor a trebuit rescrisă după testare manuală.
 
-## Ce a mers bine și ce a fost mai greu
-
-Funcționalitățile de client au fost livrate la timp, iar agentul AI a redus timpul petrecut pe erori de tipuri TypeScript sau pe configurări de framework.
+## Ce a fost mai greu
 
 Problemele au apărut mai ales la integrare: codul generat funcționa izolat, dar nu mereu cu WebSocket-urile sau autentificarea făcute de colegi. A trebuit să citesc codul existent înainte de a accepta o soluție generată.
 
@@ -73,9 +73,7 @@ Uneori agentul propunea soluții prea complexe pentru task-uri simple. În acest
 
 ## Concluzii
 
-Agenții AI au scurtat timpul de implementare pe partea de client, dar nu elimină necesitatea de a înțelege codul și de a testa manual, mai ales la integrare.
-
-În proiecte viitoare aș folosi agentul mai ales la începutul unui feature sau la teste, cu verificare înainte de commit că modificările se potrivesc cu restul echipei.
+Agenții AI au scurtat timpul de implementare cu siguranță, mai ales pe partea de cod repetitiv, dar nu elimină necesitatea de a înțelege codul și de a testa manual, mai ales la integrare. În plus, utilizarea lor eficientă ține foarte mult de strategie și de managementul resurselor. Alegerea modelului potrivit pentru complexitatea task-ului și structurarea unui workflow riguros – de la planificare până la execuție – pot face diferența între timp economisit și timp pierdut pe corectarea unor erori în lanț. În final, AI-ul este clar un ajutor excelent pentru accelerarea logicii de bază, însă latura umană și verificarea manuală direct în pagina web rămân esențiale pentru a asigura stabilitatea aplicației.
 
 ---
 
