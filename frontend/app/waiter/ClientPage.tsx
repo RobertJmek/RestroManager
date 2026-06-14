@@ -366,17 +366,23 @@ function WaiterContent() {
                     <h3 className="font-black text-slate-200 uppercase mb-4 text-sm tracking-wider border-b border-slate-700 pb-2">{category as string}</h3>
                     <div className="space-y-3">
                       {menuItems.filter(i => i.category === category).map(item => (
-                        <div key={item.id} className="flex justify-between items-center bg-slate-800 p-3 rounded-xl border border-slate-700">
+                        <div key={item.id} className={`flex justify-between items-center p-3 rounded-xl border ${item.is_available ? "bg-slate-800 border-slate-700" : "bg-slate-800/40 border-slate-800 opacity-60"}`}>
                           <div>
                             <p className="font-bold text-slate-100">{item.name}</p>
                             <p className="text-sm font-bold text-green-400">{item.price} Lei</p>
                           </div>
-                          <button 
-                            onClick={() => setItemToAdd(item)}
-                            className="bg-blue-600 hover:bg-blue-500 text-white font-bold px-4 py-2 rounded-full transition-colors text-sm shrink-0"
-                          >
-                            Adaugă
-                          </button>
+                          {item.is_available ? (
+                            <button
+                              onClick={() => setItemToAdd(item)}
+                              className="bg-blue-600 hover:bg-blue-500 text-white font-bold px-4 py-2 rounded-full transition-colors text-sm shrink-0"
+                            >
+                              Adaugă
+                            </button>
+                          ) : (
+                            <span className="text-[10px] bg-red-950/40 text-red-400 border border-red-800 font-bold px-3 py-1.5 rounded-full uppercase shrink-0">
+                              Indisponibil
+                            </span>
+                          )}
                         </div>
                       ))}
                     </div>
