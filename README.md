@@ -16,7 +16,7 @@ Tabelul de mai jos indică, pentru fiecare criteriu MDS, unde se găsește livra
 |---|---|
 | Minim 2 agenți AI în produs (3 puncte) | **3 agenți DeepSeek** în [`backend/core/ai.py`](backend/core/ai.py): recomandare pentru client, *insights* pentru manager și generare de conținut de meniu — vezi [§ AI Recommendation Agent](#-ai-recommendation-agent) |
 | Aplicație full-stack + live demo | Next.js (`frontend/`) + FastAPI (`backend/`) + WebSocket real-time; rulează cu `docker-compose up --build` (vezi [Quick Start](#-quick-start-local-development)) |
-| Demo offline (YouTube) | *(link screencast — de adăugat de echipă)* |
+| Demo offline (YouTube) | https://youtu.be/p4bzeJXTDNg |
 
 ### B. Procesul de dezvoltare software cu AI
 
